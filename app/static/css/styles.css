@@ -1,0 +1,38 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, system-ui, sans-serif;
+  color: #172033;
+  background: #eef2f7;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+
+.status-card {
+  width: min(34rem, calc(100% - 3rem));
+  padding: 3rem;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1.25rem 3rem rgb(23 32 51 / 12%);
+}
+
+.eyebrow {
+  color: #176b55;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin-bottom: 0.75rem;
+}
+
+a {
+  color: #176b55;
+  font-weight: 700;
+}

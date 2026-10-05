@@ -19,6 +19,7 @@ htmlcov/
 node_modules/
 dist/
 build/
+*.egg-info/
 
 .vscode/
 .idea/
@@ -37,6 +38,7 @@ data/reports/*
 *.mp4
 *.webm
 *.sql
+!docker/postgres/init.sql
 *.dump
 *.db
 *.sqlite

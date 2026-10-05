@@ -3,6 +3,32 @@ name = "recrunion"
 version = "0.1.0"
 description = "AI-Powered Recruitment & Interview Intelligence Platform"
 requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.12",
+    "jinja2==3.1.6",
+    "psycopg[binary]==3.2.6",
+    "pydantic-settings==2.8.1",
+    "sqlalchemy==2.0.40",
+    "uvicorn[standard]==0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx==0.28.1",
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "ruff==0.11.4",
+]
+
+[build-system]
+requires = ["setuptools==78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*", "worker*"]
+
+[tool.setuptools.package-data]
+app = ["templates/*.html", "static/css/*.css"]
 
 [tool.ruff]
 target-version = "py312"
@@ -23,9 +49,11 @@ docstring-code-format = true
 minversion = "8.0"
 addopts = "-ra"
 testpaths = ["tests"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 branch = true

@@ -32,5 +32,32 @@ Formal project documentation is under [`/docs`](docs/).
 
 Detailed build/run instructions will be completed as the implementation progresses.
 
+## M0 quick start
+
+Requirements: Docker with the Compose plugin.
+
+1. Copy `.env.example` to `.env` and change `POSTGRES_PASSWORD` from its placeholder.
+2. Start the application:
+
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open `http://localhost:8000`.
+
+Health endpoints:
+
+- `GET /health` checks the web process.
+- `GET /ready` checks PostgreSQL connectivity and the pgvector extension.
+
+Run the local quality checks from a Python 3.12 environment with development dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+ruff format --check .
+ruff check .
+pytest
+```
+
 ## Privacy
 Development and demonstration use provided sample or synthetic candidate data only. The repository must not contain real candidate data, secrets, recordings, transcripts containing PII, or database dumps.
