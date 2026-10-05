@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Edit" if job else "Create" }} job · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Job management</p>
+      <h1>{{ "Edit job" if job else "Create job" }}</h1>
+    </div>
+    <a class="text-link" href="{{ '/jobs/' ~ job.id if job else '/jobs' }}">Cancel</a>
+  </div>
+
+  <form
+    id="job-form"
+    class="form-card"
+    data-job-id="{{ job.id if job else '' }}"
+  >
+    <div class="form-grid">
+      <label>
+        Job title
+        <input name="title" required maxlength="200" value="{{ job.title if job else '' }}">
+      </label>
+      <label>
+        Location
+        <input name="location" required maxlength="200" value="{{ job.location if job else '' }}">
+      </label>
+      <label>
+        Employment type
+        <select name="employment_type" required>
+          {% for employment_type in employment_types %}
+            <option
+              value="{{ employment_type.value }}"
+              {% if job and job.employment_type == employment_type %}selected{% endif %}
+            >
+              {{ employment_type.value | replace('_', ' ') | title }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Application email
+        <input
+          name="application_email"
+          type="email"
+          required
+          maxlength="320"
+          value="{{ job.application_email if job else '' }}"
+        >
+      </label>
+      <label>
+        Minimum experience (years)
+        <input
+          name="minimum_experience"
+          type="number"
+          min="0"
+          max="80"
+          step="0.5"
+          value="{{ job.minimum_experience if job and job.minimum_experience is not none else '' }}"
+        >
+      </label>
+    </div>
+
+    <label>
+      Required skills <span class="hint">One per line</span>
+      <textarea name="required_skills" required rows="5">{{ job.required_skills | join('\n') if job else '' }}</textarea>
+    </label>
+    <label>
+      Preferred skills <span class="hint">One per line</span>
+      <textarea name="preferred_skills" rows="4">{{ job.preferred_skills | join('\n') if job else '' }}</textarea>
+    </label>
+    <label>
+      Qualifications <span class="hint">One per line</span>
+      <textarea name="qualifications" rows="4">{{ job.qualifications | join('\n') if job else '' }}</textarea>
+    </label>
+    <label>
+      Selection criteria <span class="hint">One per line</span>
+      <textarea name="selection_criteria" rows="4">{{ job.selection_criteria | join('\n') if job else '' }}</textarea>
+    </label>
+
+    <div id="form-error" class="form-error" role="alert" hidden></div>
+    <button class="button" type="submit">{{ "Save changes" if job else "Create draft" }}</button>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/jobs.js" defer></script>
+{% endblock %}

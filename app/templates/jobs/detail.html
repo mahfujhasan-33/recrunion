@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.title }} · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">{{ job.code }}</p>
+      <h1>{{ job.title }}</h1>
+      <p>{{ job.location }} · {{ job.employment_type.value | replace('_', ' ') | title }}</p>
+    </div>
+    <div class="actions">
+      <span class="status-badge">{{ job.status.value }}</span>
+      <a class="button secondary" href="/jobs/{{ job.id }}/edit">Edit job</a>
+    </div>
+  </div>
+
+  <section class="detail-card">
+    <h2>Application</h2>
+    <p><a href="mailto:{{ job.application_email }}">{{ job.application_email }}</a></p>
+  </section>
+
+  <div class="detail-grid">
+    <section class="detail-card">
+      <h2>Required skills</h2>
+      <ul>{% for item in job.required_skills %}<li>{{ item }}</li>{% endfor %}</ul>
+    </section>
+    <section class="detail-card">
+      <h2>Preferred skills</h2>
+      {% if job.preferred_skills %}
+        <ul>{% for item in job.preferred_skills %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+    <section class="detail-card">
+      <h2>Experience</h2>
+      <p>
+        {% if job.minimum_experience is not none %}
+          {{ job.minimum_experience }} years minimum
+        {% else %}
+          No minimum specified.
+        {% endif %}
+      </p>
+    </section>
+    <section class="detail-card">
+      <h2>Qualifications</h2>
+      {% if job.qualifications %}
+        <ul>{% for item in job.qualifications %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+    <section class="detail-card">
+      <h2>Selection criteria</h2>
+      {% if job.selection_criteria %}
+        <ul>{% for item in job.selection_criteria %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+  </div>
+{% endblock %}

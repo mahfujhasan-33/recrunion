@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Jobs · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Job management</p>
+      <h1>Jobs</h1>
+    </div>
+    <a class="button" href="/jobs/new">Create job</a>
+  </div>
+
+  {% if jobs %}
+    <div class="card-grid">
+      {% for job in jobs %}
+        <article class="job-card">
+          <div class="card-heading">
+            <span class="status-badge">{{ job.status.value }}</span>
+            <span class="job-code">{{ job.code }}</span>
+          </div>
+          <h2><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h2>
+          <p>{{ job.location }} · {{ job.employment_type.value | replace('_', ' ') | title }}</p>
+          <p>{{ job.required_skills | length }} required skill(s)</p>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="empty-state">
+      <h2>No jobs yet</h2>
+      <p>Create the first draft role and its selection requirements.</p>
+      <a class="button" href="/jobs/new">Create job</a>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -3,21 +3,57 @@
   font-family: Inter, system-ui, sans-serif;
   color: #172033;
   background: #eef2f7;
+  line-height: 1.5;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
-  display: grid;
-  place-items: center;
 }
 
-.status-card {
-  width: min(34rem, calc(100% - 3rem));
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem max(1.5rem, calc((100% - 70rem) / 2));
+  background: #172033;
+}
+
+.site-header a {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.site-header nav {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.brand {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.page-shell {
+  width: min(70rem, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 3rem 0;
+}
+
+.status-card,
+.form-card,
+.detail-card,
+.empty-state,
+.job-card {
   padding: 3rem;
   border-radius: 1rem;
   background: #ffffff;
   box-shadow: 0 1.25rem 3rem rgb(23 32 51 / 12%);
+}
+
+.status-card {
+  max-width: 38rem;
+  margin: 4rem auto;
 }
 
 .eyebrow {
@@ -35,4 +71,126 @@ h1 {
 a {
   color: #176b55;
   font-weight: 700;
+}
+
+.page-heading,
+.card-heading,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-heading {
+  margin-bottom: 2rem;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  background: #176b55;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button.secondary {
+  color: #176b55;
+  background: #dcefe9;
+}
+
+.card-grid,
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.25rem;
+}
+
+.job-card,
+.detail-card,
+.empty-state {
+  padding: 1.5rem;
+}
+
+.job-card h2 {
+  margin: 1rem 0 0.5rem;
+}
+
+.job-code,
+.hint {
+  color: #687286;
+  font-size: 0.85rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  color: #0d513f;
+  background: #dcefe9;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.form-card {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid #bdc6d5;
+  border-radius: 0.45rem;
+  color: inherit;
+  background: #ffffff;
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.form-error {
+  padding: 0.8rem;
+  border-radius: 0.45rem;
+  color: #831515;
+  background: #fbe4e4;
+}
+
+.detail-grid {
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 40rem) {
+  .page-heading,
+  .actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-card,
+  .form-card {
+    padding: 1.5rem;
+  }
 }

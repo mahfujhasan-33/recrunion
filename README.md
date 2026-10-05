@@ -32,7 +32,7 @@ Formal project documentation is under [`/docs`](docs/).
 
 Detailed build/run instructions will be completed as the implementation progresses.
 
-## M0 quick start
+## Quick start
 
 Requirements: Docker with the Compose plugin.
 
@@ -45,10 +45,22 @@ Requirements: Docker with the Compose plugin.
 
 3. Open `http://localhost:8000`.
 
+The app container applies pending Alembic migrations before starting FastAPI. To inspect or apply migrations manually:
+
+```bash
+docker compose exec app alembic current
+docker compose exec app alembic upgrade head
+```
+
 Health endpoints:
 
 - `GET /health` checks the web process.
 - `GET /ready` checks PostgreSQL connectivity and the pgvector extension.
+
+Job management:
+
+- UI: `GET /jobs`, `/jobs/new`, `/jobs/{job_id}`, `/jobs/{job_id}/edit`
+- API: `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{job_id}`, `PUT /api/v1/jobs/{job_id}`
 
 Run the local quality checks from a Python 3.12 environment with development dependencies:
 

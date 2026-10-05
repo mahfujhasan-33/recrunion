@@ -6,6 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv/recrunion
 
 COPY pyproject.toml README.md ./
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY app ./app
 COPY worker ./worker
 
