@@ -51,7 +51,81 @@ async function submitJob(event) {
   }
 }
 
+async function requestJobAction(endpoint, options = {}) {
+  const response = await fetch(endpoint, options);
+  const body = await response.json();
+
+  if (!response.ok) {
+    const validationMessage = body.detail?.[0]?.msg;
+    throw new Error(validationMessage || body.message || "The request could not be completed.");
+  }
+  return body;
+}
+
+function setDescriptionFeedback(message, isError = false) {
+  const feedback = document.querySelector("#description-feedback");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.classList.toggle("success-message", !isError);
+  feedback.hidden = false;
+}
+
+async function runDescriptionAction(button, action, loadingMessage) {
+  button.disabled = true;
+  setDescriptionFeedback(loadingMessage);
+  try {
+    await action();
+    window.location.reload();
+  } catch (error) {
+    setDescriptionFeedback(error.message, true);
+    button.disabled = false;
+  }
+}
+
 const jobForm = document.querySelector("#job-form");
 if (jobForm) {
   jobForm.addEventListener("submit", submitJob);
+}
+
+const descriptionSection = document.querySelector(".job-description");
+const jobId = descriptionSection?.dataset.jobId;
+const generateButton = document.querySelector("#generate-description");
+if (generateButton && jobId) {
+  generateButton.addEventListener("click", () =>
+    runDescriptionAction(
+      generateButton,
+      () => requestJobAction(`/api/v1/jobs/${jobId}/generate-description`, { method: "POST" }),
+      "Generating the job description…",
+    ),
+  );
+}
+
+const descriptionForm = document.querySelector("#description-form");
+if (descriptionForm && jobId) {
+  descriptionForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const submitButton = descriptionForm.querySelector('button[type="submit"]');
+    const content = new FormData(descriptionForm).get("content");
+    runDescriptionAction(
+      submitButton,
+      () =>
+        requestJobAction(`/api/v1/jobs/${jobId}/description`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        }),
+      "Saving the reviewed description…",
+    );
+  });
+}
+
+const approveButton = document.querySelector("#approve-description");
+if (approveButton && jobId) {
+  approveButton.addEventListener("click", () =>
+    runDescriptionAction(
+      approveButton,
+      () => requestJobAction(`/api/v1/jobs/${jobId}/approve`, { method: "POST" }),
+      "Approving the reviewed description…",
+    ),
+  );
 }

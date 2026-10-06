@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from app.errors import JobNotFoundError
+from app.errors import InvalidJobStatusError, JobNotFoundError
 from app.models.jobs import (
     Job,
     JobRequirement,
@@ -31,22 +31,26 @@ class JobService:
             status=JobStatus.DRAFT,
             requirements=self._build_requirements(request),
         )
-        return self._to_response(self._repository.create(job))
+        return self.to_response(self._repository.create(job))
 
     def list_jobs(self) -> list[JobResponse]:
-        return [self._to_response(job) for job in self._repository.list_all()]
+        return [self.to_response(job) for job in self._repository.list_all()]
 
     def get_job(self, job_id: UUID) -> JobResponse:
-        return self._to_response(self._get_existing_job(job_id))
+        return self.to_response(self._get_existing_job(job_id))
 
     def update_job(self, job_id: UUID, request: JobWriteRequest) -> JobResponse:
         job = self._get_existing_job(job_id)
+        if job.status != JobStatus.DRAFT:
+            raise InvalidJobStatusError(
+                "Structured requirements can only be edited while the job is DRAFT."
+            )
         job.title = request.title
         job.location = request.location
         job.employment_type = request.employment_type
         job.application_email = str(request.application_email)
         job.requirements = self._build_requirements(request)
-        return self._to_response(self._repository.update(job))
+        return self.to_response(self._repository.update(job))
 
     def _get_existing_job(self, job_id: UUID) -> Job:
         job = self._repository.get(job_id)
@@ -118,7 +122,7 @@ class JobService:
         return requirements
 
     @staticmethod
-    def _to_response(job: Job) -> JobResponse:
+    def to_response(job: Job) -> JobResponse:
         required_skills: list[str] = []
         preferred_skills: list[str] = []
         qualifications: list[str] = []
@@ -149,6 +153,14 @@ class JobService:
             employment_type=job.employment_type,
             application_email=job.application_email,
             status=job.status,
+            jd_generated_content=job.jd_generated_content,
+            jd_content=job.jd_content,
+            jd_version=job.jd_version,
+            jd_generated_at=job.jd_generated_at,
+            approved_at=job.approved_at,
+            jd_provider=job.jd_provider,
+            jd_model=job.jd_model,
+            jd_generation_metadata=job.jd_generation_metadata,
             required_skills=required_skills,
             preferred_skills=preferred_skills,
             minimum_experience=minimum_experience,

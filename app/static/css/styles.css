@@ -182,6 +182,31 @@ textarea {
   margin-top: 1.25rem;
 }
 
+.job-description {
+  margin-top: 1.25rem;
+}
+
+.description-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.description-content {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.success-message {
+  color: #0d513f;
+  background: #dcefe9;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 @media (max-width: 40rem) {
   .page-heading,
   .actions {

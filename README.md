@@ -62,6 +62,13 @@ Job management:
 - UI: `GET /jobs`, `/jobs/new`, `/jobs/{job_id}`, `/jobs/{job_id}/edit`
 - API: `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{job_id}`, `PUT /api/v1/jobs/{job_id}`
 
+AI job descriptions:
+
+- Configure `GEMINI_API_KEY` and optionally `GEMINI_MODEL` in `.env`.
+- Generate: `POST /api/v1/jobs/{job_id}/generate-description`
+- Save recruiter edits: `PUT /api/v1/jobs/{job_id}/description`
+- Explicitly approve: `POST /api/v1/jobs/{job_id}/approve`
+
 Run the local quality checks from a Python 3.12 environment with development dependencies:
 
 ```bash

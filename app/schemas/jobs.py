@@ -42,5 +42,13 @@ class JobResponse(JobWriteRequest):
     id: UUID
     code: str
     status: JobStatus
+    jd_generated_content: str | None
+    jd_content: str | None
+    jd_version: int
+    jd_generated_at: datetime | None
+    approved_at: datetime | None
+    jd_provider: str | None
+    jd_model: str | None
+    jd_generation_metadata: dict[str, object] | None
     created_at: datetime
     updated_at: datetime

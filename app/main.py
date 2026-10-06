@@ -2,12 +2,12 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.errors import JobNotFoundError
+from app.errors import RecrUnionError
 from app.routers import health, home, jobs_api, jobs_web
 
 STATIC_DIRECTORY = Path(__file__).parent / "static"
@@ -33,16 +33,16 @@ def create_app() -> FastAPI:
     application.include_router(jobs_api.router)
     application.include_router(jobs_web.router)
 
-    @application.exception_handler(JobNotFoundError)
-    async def handle_job_not_found(
+    @application.exception_handler(RecrUnionError)
+    async def handle_application_error(
         request: Request,
-        error: JobNotFoundError,
+        error: RecrUnionError,
     ) -> JSONResponse:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=error.status_code,
             content={
-                "code": "JOB_NOT_FOUND",
+                "code": error.code,
                 "message": str(error),
                 "request_id": request_id,
             },

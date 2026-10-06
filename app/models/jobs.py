@@ -4,6 +4,7 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
     DateTime,
     Enum,
     ForeignKey,
@@ -67,6 +68,28 @@ class Job(Base):
         nullable=False,
         default=JobStatus.DRAFT,
         server_default=JobStatus.DRAFT.value,
+    )
+    jd_generated_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    jd_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    jd_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    jd_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    jd_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    jd_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    jd_generation_metadata: Mapped[dict[str, object] | None] = mapped_column(
+        JSON,
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -11,7 +11,9 @@
     </div>
     <div class="actions">
       <span class="status-badge">{{ job.status.value }}</span>
-      <a class="button secondary" href="/jobs/{{ job.id }}/edit">Edit job</a>
+      {% if job.status.value == "DRAFT" %}
+        <a class="button secondary" href="/jobs/{{ job.id }}/edit">Edit requirements</a>
+      {% endif %}
     </div>
   </div>
 
@@ -54,4 +56,44 @@
       {% else %}<p>None specified.</p>{% endif %}
     </section>
   </div>
+
+  <section class="detail-card job-description" data-job-id="{{ job.id }}">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">AI-assisted draft</p>
+        <h2>Job description</h2>
+      </div>
+      {% if job.jd_generated_at %}
+        <span class="hint">Generated {{ job.jd_generated_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+      {% endif %}
+    </div>
+
+    {% if job.status.value == "DRAFT" %}
+      <p>Generate a recruiter-editable description from the structured requirements above.</p>
+      <button id="generate-description" class="button" type="button">Generate description</button>
+    {% elif job.status.value == "GENERATED" %}
+      <form id="description-form" class="description-form">
+        <label>
+          Review and edit before approval
+          <textarea name="content" rows="24" required minlength="50">{{ job.jd_content }}</textarea>
+        </label>
+        <div class="actions">
+          <button class="button secondary" type="submit">Save description</button>
+          <button id="approve-description" class="button" type="button">Approve description</button>
+        </div>
+      </form>
+    {% elif job.status.value == "APPROVED" %}
+      <p class="success-message">Approved{% if job.approved_at %} on {{ job.approved_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}.</p>
+      <pre class="description-content">{{ job.jd_content }}</pre>
+    {% endif %}
+
+    {% if job.jd_provider and job.jd_model %}
+      <p class="hint">Generated with {{ job.jd_provider }} · {{ job.jd_model }} · version {{ job.jd_version }}</p>
+    {% endif %}
+    <div id="description-feedback" class="form-error" role="status" hidden></div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/jobs.js" defer></script>
 {% endblock %}
