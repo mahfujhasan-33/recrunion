@@ -33,6 +33,14 @@ def test_generate_edit_and_approve_job_description(
     assert edit_response.json()["jd_content"] == reviewed_content
     assert edit_response.json()["status"] == "GENERATED"
 
+    stale_approval_response = client.post(f"/api/v1/jobs/{created['id']}/approve")
+    assert stale_approval_response.status_code == 409
+    assert stale_approval_response.json()["code"] == "POLICY_REVIEW_REQUIRED"
+
+    review_response = client.post(f"/api/v1/jobs/{created['id']}/policy-review")
+    assert review_response.status_code == 200
+    assert review_response.json()["is_current"] is True
+
     approval_response = client.post(f"/api/v1/jobs/{created['id']}/approve")
     assert approval_response.status_code == 200
     assert approval_response.json()["status"] == "APPROVED"
@@ -87,3 +95,30 @@ def test_generated_job_rejects_structured_requirement_changes(
 
     assert response.status_code == 409
     assert response.json()["code"] == "INVALID_JOB_STATUS"
+
+
+def test_enhancement_requires_relevant_ready_policy_evidence(
+    client: TestClient,
+    job_payload: dict[str, Any],
+) -> None:
+    created = client.post("/api/v1/jobs", json=job_payload).json()
+    client.post(f"/api/v1/jobs/{created['id']}/generate-description")
+
+    response = client.post(f"/api/v1/jobs/{created['id']}/enhance-description")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "POLICY_ENHANCEMENT_UNAVAILABLE"
+
+
+def test_generated_job_page_always_offers_policy_recheck(
+    client: TestClient,
+    job_payload: dict[str, Any],
+) -> None:
+    created = client.post("/api/v1/jobs", json=job_payload).json()
+    client.post(f"/api/v1/jobs/{created['id']}/generate-description")
+
+    response = client.get(f"/jobs/{created['id']}")
+
+    assert response.status_code == 200
+    assert 'id="recheck-policy"' in response.text
+    assert "/static/js/jobs.js?v=20261007-policy-enhancement-2" in response.text

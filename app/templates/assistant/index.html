@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Recruiter assistant · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="assistant-page" id="assistant-app">
+    <section class="assistant-chat" aria-label="Recruiter assistant chat">
+      <div class="assistant-panel-heading">
+        <div>
+          <p class="eyebrow">Recruiter copilot</p>
+          <h1>Build the role through conversation</h1>
+        </div>
+        <button class="button secondary compact" id="new-conversation" type="button">New</button>
+      </div>
+      <div class="assistant-messages" id="assistant-messages" aria-live="polite"></div>
+      <div class="assistant-progress" id="assistant-progress" hidden>
+        <div class="progress-copy">
+          <span id="progress-message">Preparing your request</span>
+          <strong id="progress-percentage">0%</strong>
+        </div>
+        <progress id="progress-bar" max="100" value="0">0%</progress>
+      </div>
+      <form class="assistant-composer" id="assistant-composer">
+        <label class="sr-only" for="assistant-input">Message</label>
+        <textarea id="assistant-input" rows="3" maxlength="4000" required placeholder="Try: I need an AI/ML engineer in Dhaka..."></textarea>
+        <button class="button" type="submit">Send</button>
+      </form>
+    </section>
+
+    <section class="assistant-workspace" aria-label="Active workspace">
+      <div class="assistant-panel-heading">
+        <div>
+          <p class="eyebrow">Active workspace</p>
+          <h2 id="workspace-title">Hiring draft</h2>
+          <p class="hint" id="workspace-context">Requirements, previews, evidence, and required actions stay in sync with the chat.</p>
+        </div>
+        <span class="status-badge" id="workspace-status">WORKING</span>
+      </div>
+
+      <div id="assistant-error" class="form-error" role="alert" hidden></div>
+      <div class="required-actions" id="required-actions"></div>
+
+      <div class="workspace-tabs" role="tablist" aria-label="Workspace views">
+        <button class="workspace-tab active" data-tab="requirements" type="button">Requirements</button>
+        <button class="workspace-tab" data-tab="preview" type="button">JD preview</button>
+        <button class="workspace-tab" data-tab="evidence" type="button">Evidence</button>
+      </div>
+
+      <section class="workspace-view active" data-view="requirements">
+        <form id="requirements-form" class="workspace-form"></form>
+      </section>
+      <section class="workspace-view" data-view="preview">
+        <div id="jd-preview" class="workspace-empty">Generate a JD when the requirements are ready.</div>
+      </section>
+      <section class="workspace-view" data-view="evidence">
+        <div id="policy-evidence" class="workspace-empty">Policy findings appear after JD generation.</div>
+      </section>
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/assistant.js?v=20261007-assistant-1" defer></script>
+{% endblock %}

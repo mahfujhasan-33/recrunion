@@ -1,17 +1,21 @@
 from typing import Any
 
 import pytest
-from conftest import FakeLLMAdapter
+from conftest import FakeEmbeddingAdapter, FakeLLMAdapter
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from app.graphs.job_description import JobDescriptionGraph
+from app.graphs.job_description_enhancement import JobDescriptionEnhancementGraph
 from app.models.jobs import JobStatus
+from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.jobs import JobRepository
+from app.repositories.policy_knowledge import PolicyKnowledgeRepository, PolicyReviewRepository
 from app.schemas.job_descriptions import JobDescriptionUpdateRequest
 from app.schemas.jobs import JobWriteRequest
 from app.services.job_descriptions import JobDescriptionService
 from app.services.jobs import JobService
+from app.services.policy_reviews import PolicyReviewService
 
 
 @pytest.mark.asyncio
@@ -19,13 +23,29 @@ async def test_generated_edited_and_approved_fields_survive_new_sessions(
     database_engine: Engine,
     job_payload: dict[str, Any],
     fake_llm_adapter: FakeLLMAdapter,
+    fake_embedding_adapter: FakeEmbeddingAdapter,
 ) -> None:
     with Session(database_engine, expire_on_commit=False) as first_session:
         repository = JobRepository(first_session)
         created = JobService(repository).create_job(JobWriteRequest.model_validate(job_payload))
+        review_repository = PolicyReviewRepository(first_session)
         service = JobDescriptionService(
             repository,
-            JobDescriptionGraph(repository, fake_llm_adapter),
+            JobDescriptionGraph(
+                repository,
+                fake_llm_adapter,
+                PolicyKnowledgeRepository(first_session),
+                review_repository,
+                fake_embedding_adapter,
+            ),
+            JobDescriptionEnhancementGraph(
+                repository,
+                fake_llm_adapter,
+                PolicyKnowledgeRepository(first_session),
+                review_repository,
+                fake_embedding_adapter,
+            ),
+            review_repository,
         )
         generated = await service.generate_description(created.id)
         edited_content = generated.jd_content + "\n\nRecruiter-reviewed final wording."
@@ -33,6 +53,17 @@ async def test_generated_edited_and_approved_fields_survive_new_sessions(
             created.id,
             JobDescriptionUpdateRequest(content=edited_content),
         )
+        await PolicyReviewService(
+            repository,
+            PolicyKnowledgeRepository(first_session),
+            review_repository,
+            CompanyDocumentRepository(first_session),
+            fake_embedding_adapter,
+            fake_llm_adapter,
+            candidate_count=20,
+            top_k=8,
+            minimum_similarity=0.3,
+        ).recheck(created.id)
         service.approve_description(created.id)
 
     with Session(database_engine, expire_on_commit=False) as second_session:

@@ -62,22 +62,27 @@ async function requestJobAction(endpoint, options = {}) {
   return body;
 }
 
-function setDescriptionFeedback(message, isError = false) {
-  const feedback = document.querySelector("#description-feedback");
+function setActionFeedback(message, isError = false, selector = "#description-feedback") {
+  const feedback = document.querySelector(selector);
   if (!feedback) return;
   feedback.textContent = message;
   feedback.classList.toggle("success-message", !isError);
   feedback.hidden = false;
 }
 
-async function runDescriptionAction(button, action, loadingMessage) {
+async function runDescriptionAction(
+  button,
+  action,
+  loadingMessage,
+  feedbackSelector = "#description-feedback",
+) {
   button.disabled = true;
-  setDescriptionFeedback(loadingMessage);
+  setActionFeedback(loadingMessage, false, feedbackSelector);
   try {
     await action();
     window.location.reload();
   } catch (error) {
-    setDescriptionFeedback(error.message, true);
+    setActionFeedback(error.message, true, feedbackSelector);
     button.disabled = false;
   }
 }
@@ -126,6 +131,31 @@ if (approveButton && jobId) {
       approveButton,
       () => requestJobAction(`/api/v1/jobs/${jobId}/approve`, { method: "POST" }),
       "Approving the reviewed description…",
+    ),
+  );
+}
+
+const recheckPolicyButton = document.querySelector("#recheck-policy");
+if (recheckPolicyButton && jobId) {
+  recheckPolicyButton.addEventListener("click", () =>
+    runDescriptionAction(
+      recheckPolicyButton,
+      () => requestJobAction(`/api/v1/jobs/${jobId}/policy-review`, { method: "POST" }),
+      "Re-checking company-policy alignment…",
+      "#policy-feedback",
+    ),
+  );
+}
+
+const enhanceDescriptionButton = document.querySelector("#enhance-description");
+if (enhanceDescriptionButton && jobId) {
+  enhanceDescriptionButton.addEventListener("click", () =>
+    runDescriptionAction(
+      enhanceDescriptionButton,
+      () =>
+        requestJobAction(`/api/v1/jobs/${jobId}/enhance-description`, { method: "POST" }),
+      "Enhancing the job description from policy evidence…",
+      "#policy-feedback",
     ),
   );
 }

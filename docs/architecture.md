@@ -25,7 +25,7 @@ Application Services         Daily.co Media
                Adapter Layer
      +--------------+------------------------------+
      |              |            |       |         |
-   Gemini   SentenceTransformer Daily  Bluesky   SMTP
+   Gemini      Ollama/Nomic    Daily  Bluesky   SMTP
                     |
               PostgreSQL + pgvector
 ```
@@ -54,9 +54,18 @@ Router -> Service -> Repository / Adapter / Graph
 ## Planned graphs
 
 ### JD Graph
-`load requirements -> generate -> validate -> persist draft`
+`load requirements -> validate -> build retrieval query -> retrieve company policy -> generate -> validate -> evaluate policy alignment -> validate evidence references -> persist draft and review`
+
+An M2 enhancement graph handles recruiter-requested policy remediation:
+
+`load current JD -> retrieve fresh policy evidence -> evaluate current alignment -> select actionable findings -> enhance -> validate -> re-evaluate -> persist new JD version and review`
 
 Human approval happens outside the graph.
+
+### Recruiter Assistant Graph
+`interpret recruiter intent -> enforce typed action boundary -> service executes approved use case -> persist message/workspace artifact`
+
+The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval is never executed by the graph; the recruiter must use the explicit confirmation action.
 
 ### F1 Screening Graph
 `load -> extract/structure -> embed/retrieve -> evaluate requirements -> validate evidence -> persist`
@@ -74,10 +83,16 @@ Human approval happens outside the graph.
 Final scoring is deterministic Python. LLMs may assist with structured evidence interpretation and justifications, not arbitrary final numeric scores.
 
 ## Vector search
-- local SentenceTransformer embeddings
-- requirement and CV chunk vectors
+- local Ollama `nomic-embed-text` embeddings for M2 company-policy chunks and queries
+- M2 policy vectors are 768-dimensional and stored in PostgreSQL + pgvector
+- candidate/CV vectors remain deferred to the candidate embedding milestone
 - PostgreSQL + pgvector cosine similarity
 - vector retrieval supplies evidence; it is not the sole decision mechanism
+
+## Company knowledge base
+Original PDF, DOCX, and TXT files are stored in a managed Docker volume. PostgreSQL stores document metadata, extracted chunks, vectors, ingestion status, and safe errors. Upload creates a `processing_jobs` record; the worker parses, chunks, embeds, and marks the document `READY` or `FAILED`. SHA-256 prevents duplicate uploads. Deleting a document removes its managed file and cascades its chunks/vectors.
+
+Policy reviews store immutable evidence snapshots, source identifiers, JD version/hash, related JD section, status, and explanation. This preserves historical review traceability after a source document is deleted, without retaining the complete deleted document. A review is current only when its JD version and content hash match the editable JD.
 
 ## Background processing
 `processing_jobs` statuses:
@@ -85,6 +100,8 @@ Final scoring is deterministic Python. LLMs may assist with structured evidence 
 - RUNNING
 - COMPLETED
 - FAILED
+
+Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN` job types.
 
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
@@ -95,7 +112,8 @@ Daily.co provides cross-network media transport. RecrUnion persists session, can
 faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains acceptable.
 
 ## External actions
-- JobService --`generate/refine JD`--> Gemini
+- JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
+- JobDescriptionGraph --`generate/evaluate JD`--> Gemini
 - PublishingService --`publish approved job`--> Bluesky
 - ScreeningService --`embed/search evidence`--> SentenceTransformer + pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini

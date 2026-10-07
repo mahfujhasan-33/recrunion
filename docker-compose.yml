@@ -20,6 +20,20 @@ services:
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-30}
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      COMPANY_DOCUMENTS_ROOT: ${COMPANY_DOCUMENTS_ROOT:-/data/company-documents}
+      MAX_COMPANY_DOCUMENT_SIZE_MB: ${MAX_COMPANY_DOCUMENT_SIZE_MB:-10}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-60}
+      POLICY_RETRIEVAL_CANDIDATE_COUNT: ${POLICY_RETRIEVAL_CANDIDATE_COUNT:-20}
+      POLICY_RETRIEVAL_TOP_K: ${POLICY_RETRIEVAL_TOP_K:-8}
+      POLICY_RETRIEVAL_MIN_SIMILARITY: ${POLICY_RETRIEVAL_MIN_SIMILARITY:-0.3}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - company_document_data:/data/company-documents
     ports:
       - "${APP_PORT:-8000}:${APP_PORT:-8000}"
     depends_on:
@@ -45,9 +59,28 @@ services:
     command: ["python", "-m", "worker.main"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MAX_RETRIES: ${GEMINI_MAX_RETRIES:-1}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-30}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
+      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+      COMPANY_DOCUMENTS_ROOT: ${COMPANY_DOCUMENTS_ROOT:-/data/company-documents}
+      MAX_COMPANY_DOCUMENT_SIZE_MB: ${MAX_COMPANY_DOCUMENT_SIZE_MB:-10}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-60}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - company_document_data:/data/company-documents
     depends_on:
+      app:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     healthcheck:
@@ -77,3 +110,4 @@ services:
 
 volumes:
   postgres_data:
+  company_document_data:

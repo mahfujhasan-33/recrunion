@@ -12,13 +12,23 @@ from app.errors import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
-from app.prompts.job_description import build_job_description_prompt
+from app.prompts.assistant import build_assistant_turn_prompt
+from app.prompts.job_description import (
+    build_job_description_enhancement_prompt,
+    build_job_description_prompt,
+    build_policy_alignment_prompt,
+)
+from app.schemas.assistant import AssistantTurnPlan, AssistantTurnRequest
 from app.schemas.job_descriptions import (
     GeneratedJobDescription,
+    JobDescriptionEnhancementRequest,
     JobDescriptionGenerationRequest,
     JobDescriptionGenerationResult,
     LLMGenerationMetadata,
+    PolicyAlignmentRequest,
+    PolicyAlignmentResult,
 )
+from app.schemas.policy_findings import PolicyAlignmentEvaluation
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,35 @@ class GeminiLLMAdapter:
         self._api_key = api_key.strip()
         self._model_name = model
         self._timeout_seconds = timeout_seconds
+
+    async def plan_assistant_turn(
+        self,
+        request: AssistantTurnRequest,
+    ) -> AssistantTurnPlan:
+        if not self._api_key:
+            raise LLMConfigurationError("AI generation is not configured.")
+        try:
+            structured_model = self._build_model(temperature=0.3).with_structured_output(
+                AssistantTurnPlan,
+                method="json_schema",
+                include_raw=True,
+            )
+            response = await structured_model.ainvoke(build_assistant_turn_prompt(request))
+        except Exception as error:
+            raise self._translate_provider_error(error) from None
+        if not isinstance(response, Mapping):
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        parsed = response.get("parsed")
+        if response.get("parsing_error") is not None or parsed is None:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        try:
+            return (
+                parsed
+                if isinstance(parsed, AssistantTurnPlan)
+                else AssistantTurnPlan.model_validate(parsed)
+            )
+        except ValidationError:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.") from None
 
     async def generate_job_description(
         self,
@@ -72,6 +111,34 @@ class GeminiLLMAdapter:
 
         return self._parse_response(response)
 
+    async def enhance_job_description(
+        self,
+        request: JobDescriptionEnhancementRequest,
+    ) -> JobDescriptionGenerationResult:
+        if not self._api_key:
+            raise LLMConfigurationError("AI generation is not configured.")
+        try:
+            structured_model = self._build_model().with_structured_output(
+                GeneratedJobDescription,
+                method="json_schema",
+                include_raw=True,
+            )
+            response = await structured_model.ainvoke(
+                build_job_description_enhancement_prompt(request)
+            )
+        except Exception as error:
+            translated_error = self._translate_provider_error(error)
+            logger.warning(
+                "Gemini job-description enhancement failed",
+                extra={
+                    "provider": "gemini",
+                    "model": self._model_name,
+                    "error_code": translated_error.code,
+                },
+            )
+            raise translated_error from None
+        return self._parse_response(response)
+
     def _parse_response(self, response: Any) -> JobDescriptionGenerationResult:
         if not isinstance(response, Mapping):
             raise LLMInvalidResponseError("The AI provider returned an invalid response.")
@@ -99,6 +166,71 @@ class GeminiLLMAdapter:
             description=description,
             provider="gemini",
             model=str(provider_model),
+            metadata=LLMGenerationMetadata(
+                finish_reason=self._safe_text(response_metadata.get("finish_reason")),
+                input_tokens=self._safe_int(usage_metadata.get("input_tokens")),
+                output_tokens=self._safe_int(usage_metadata.get("output_tokens")),
+                total_tokens=self._safe_int(usage_metadata.get("total_tokens")),
+            ),
+        )
+
+    async def evaluate_policy_alignment(
+        self,
+        request: PolicyAlignmentRequest,
+    ) -> PolicyAlignmentResult:
+        if not self._api_key:
+            raise LLMConfigurationError("AI generation is not configured.")
+        try:
+            model = self._build_model()
+            structured_model = model.with_structured_output(
+                PolicyAlignmentEvaluation,
+                method="json_schema",
+                include_raw=True,
+            )
+            response = await structured_model.ainvoke(build_policy_alignment_prompt(request))
+        except Exception as error:
+            translated_error = self._translate_provider_error(error)
+            logger.warning(
+                "Gemini policy-alignment evaluation failed",
+                extra={
+                    "provider": "gemini",
+                    "model": self._model_name,
+                    "error_code": translated_error.code,
+                },
+            )
+            raise translated_error from None
+        return self._parse_policy_response(response)
+
+    def _build_model(self, *, temperature: float = 1.0) -> ChatGoogleGenerativeAI:
+        return ChatGoogleGenerativeAI(
+            model=self._model_name,
+            api_key=self._api_key,
+            timeout=self._timeout_seconds,
+            max_retries=0,
+            temperature=temperature,
+        )
+
+    def _parse_policy_response(self, response: Any) -> PolicyAlignmentResult:
+        if not isinstance(response, Mapping):
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        parsed = response.get("parsed")
+        if response.get("parsing_error") is not None or parsed is None:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        try:
+            evaluation = (
+                parsed
+                if isinstance(parsed, PolicyAlignmentEvaluation)
+                else PolicyAlignmentEvaluation.model_validate(parsed)
+            )
+        except ValidationError:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.") from None
+        raw = response.get("raw")
+        response_metadata = getattr(raw, "response_metadata", {}) or {}
+        usage_metadata = getattr(raw, "usage_metadata", {}) or {}
+        return PolicyAlignmentResult(
+            evaluation=evaluation,
+            provider="gemini",
+            model=str(response_metadata.get("model_name") or self._model_name),
             metadata=LLMGenerationMetadata(
                 finish_reason=self._safe_text(response_metadata.get("finish_reason")),
                 input_tokens=self._safe_int(usage_metadata.get("input_tokens")),

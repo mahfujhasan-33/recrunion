@@ -6,13 +6,15 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_job_service
+from app.dependencies import get_job_service, get_policy_review_service
 from app.models.jobs import EmploymentType
 from app.services.jobs import JobService
+from app.services.policy_reviews import PolicyReviewService
 
 router = APIRouter(prefix="/jobs", tags=["job pages"], include_in_schema=False)
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 JobServiceDependency = Annotated[JobService, Depends(get_job_service)]
+PolicyReviewServiceDependency = Annotated[PolicyReviewService, Depends(get_policy_review_service)]
 
 
 @router.get("", response_class=HTMLResponse)
@@ -38,11 +40,15 @@ def job_detail(
     request: Request,
     job_id: UUID,
     service: JobServiceDependency,
+    policy_service: PolicyReviewServiceDependency,
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="jobs/detail.html",
-        context={"job": service.get_job(job_id)},
+        context={
+            "job": service.get_job(job_id),
+            "policy_review": policy_service.get_latest(job_id),
+        },
     )
 
 

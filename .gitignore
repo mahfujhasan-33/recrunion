@@ -30,6 +30,8 @@ data/applications/*
 !data/applications/.gitkeep
 data/reports/*
 !data/reports/.gitkeep
+data/company_documents/*
+!data/company_documents/.gitkeep
 
 *.pdf
 *.docx

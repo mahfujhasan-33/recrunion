@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Company Documents · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Persistent knowledge base</p>
+      <h1>Company documents</h1>
+      <p>Upload reusable hiring policies and job-description standards.</p>
+    </div>
+  </div>
+
+  <form id="company-document-form" class="form-card" enctype="multipart/form-data">
+    <div class="form-grid">
+      <label>
+        Document type
+        <select name="document_type" required>
+          {% for document_type in document_types %}
+            <option value="{{ document_type.value }}">{{ document_type.value | replace('_', ' ') | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        PDF, DOCX, or UTF-8 TXT (maximum {{ max_document_size_mb }} MiB)
+        <input name="file" type="file" accept=".pdf,.docx,.txt" required>
+      </label>
+    </div>
+    <button class="button" type="submit">Upload document</button>
+    <div id="document-feedback" class="form-error" role="status" hidden></div>
+  </form>
+
+  <section class="detail-card document-list">
+    <h2>Available documents</h2>
+    {% if documents %}
+      <div class="table-shell">
+        <table>
+          <thead><tr><th>Filename</th><th>Type</th><th>Status</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody>
+            {% for document in documents %}
+              <tr data-document-id="{{ document.id }}">
+                <td>{{ document.original_filename }}</td>
+                <td>{{ document.document_type.value | replace('_', ' ') | title }}</td>
+                <td><span class="status-badge">{{ document.status.value }}</span>{% if document.safe_error_message %}<br><span class="hint">{{ document.safe_error_message }}</span>{% endif %}</td>
+                <td>{{ (document.size_bytes / 1024) | round(1) }} KiB</td>
+                <td>{{ document.uploaded_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+                <td><button class="button secondary delete-document" type="button"{% if document.status.value == "PROCESSING" %} disabled{% endif %}>Delete</button></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>No company documents have been uploaded.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/company_documents.js" defer></script>{% endblock %}

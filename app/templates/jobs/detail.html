@@ -79,7 +79,7 @@
         </label>
         <div class="actions">
           <button class="button secondary" type="submit">Save description</button>
-          <button id="approve-description" class="button" type="button">Approve description</button>
+          <button id="approve-description" class="button" type="button"{% if not policy_review.is_current %} disabled{% endif %}>Approve description</button>
         </div>
       </form>
     {% elif job.status.value == "APPROVED" %}
@@ -92,8 +92,52 @@
     {% endif %}
     <div id="description-feedback" class="form-error" role="status" hidden></div>
   </section>
+
+  {% if job.status.value in ["GENERATED", "APPROVED"] %}
+    <section class="detail-card policy-review" data-review-current="{{ 'true' if policy_review.is_current else 'false' }}">
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">Decision support</p>
+          <h2>Company-policy alignment</h2>
+        </div>
+        {% if policy_review.is_current %}
+          <span class="status-badge">CURRENT</span>
+        {% else %}
+          <span class="status-badge warning">RECHECK REQUIRED</span>
+        {% endif %}
+      </div>
+      <p class="hint">AI-assisted evidence review only; this is not a legal or compliance guarantee. Recruiter approval remains authoritative.</p>
+      {% if job.status.value == "GENERATED" %}
+        <div class="actions">
+          <button id="recheck-policy" class="button secondary" type="button">Re-check policy alignment</button>
+          {% if policy_review.is_current and policy_review.actionable_finding_count > 0 %}
+            <button id="enhance-description" class="button" type="button">Enhance using evidence</button>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if policy_review.message %}<p>{{ policy_review.message }}</p>{% endif %}
+      {% for finding in policy_review.findings %}
+        <article class="policy-finding">
+          <div class="card-heading">
+            <strong>{{ finding.source_filename }}</strong>
+            <span class="status-badge policy-{{ finding.status.value | lower }}">{{ finding.status.value | replace('_', ' ') }}</span>
+          </div>
+          <p class="hint">
+            {{ finding.source_document_type | replace('_', ' ') | title }}
+            {% if finding.page_number %} · page {{ finding.page_number }}{% endif %}
+            {% if finding.section_title %} · {{ finding.section_title }}{% endif %}
+            · relates to {{ finding.related_jd_section.value | replace('_', ' ') | lower }}
+          </p>
+          <blockquote>{{ finding.evidence_excerpt }}</blockquote>
+          <p>{{ finding.explanation }}</p>
+          {% if not finding.source_available %}<p class="hint">Source document deleted; historical evidence snapshot retained.</p>{% endif %}
+        </article>
+      {% endfor %}
+      <div id="policy-feedback" class="form-error" role="status" hidden></div>
+    </section>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/js/jobs.js" defer></script>
+  <script src="/static/js/jobs.js?v=20261007-policy-enhancement-2" defer></script>
 {% endblock %}

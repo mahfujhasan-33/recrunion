@@ -40,6 +40,218 @@ body {
   padding: 3rem 0;
 }
 
+.assistant-page {
+  display: grid;
+  grid-template-columns: minmax(20rem, 0.7fr) minmax(32rem, 1.3fr);
+  height: calc(100dvh - 10rem);
+  min-height: 36rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1.25rem 3rem rgb(23 32 51 / 12%);
+}
+
+.assistant-chat,
+.assistant-workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+
+.assistant-chat {
+  overflow: hidden;
+  border-right: 1px solid #d7dee9;
+  background: #f7faf9;
+}
+
+.assistant-workspace {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.assistant-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.assistant-panel-heading h1,
+.assistant-panel-heading h2 {
+  margin: 0.25rem 0;
+}
+
+.assistant-messages {
+  display: flex;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.5rem 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.assistant-message {
+  max-width: 85%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  background: #ffffff;
+  box-shadow: 0 0.25rem 1rem rgb(23 32 51 / 8%);
+}
+
+.assistant-message.user {
+  align-self: flex-end;
+  color: #ffffff;
+  background: #176b55;
+}
+
+.assistant-message.system {
+  align-self: center;
+  color: #687286;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.assistant-message p {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+}
+
+.message-role {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+}
+
+.assistant-composer,
+.workspace-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.assistant-composer {
+  flex: 0 0 auto;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+.assistant-progress {
+  flex: 0 0 auto;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  border-radius: 0.65rem;
+  background: #e8f3ef;
+}
+
+.progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.assistant-progress progress {
+  width: 100%;
+  accent-color: #176b55;
+}
+
+.required-actions {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.required-action {
+  padding: 0.8rem 1rem;
+  border-left: 0.3rem solid #176b55;
+  border-radius: 0.5rem;
+  background: #eef8f4;
+}
+
+.required-action.blocking {
+  border-left-color: #b44a3c;
+  background: #fbeceb;
+}
+
+.required-action p {
+  margin: 0.2rem 0;
+}
+
+.workspace-tabs {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid #d7dee9;
+}
+
+.workspace-tab {
+  padding: 0.65rem 0.85rem;
+  border: 0;
+  border-bottom: 0.2rem solid transparent;
+  color: #687286;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workspace-tab.active {
+  border-bottom-color: #176b55;
+  color: #176b55;
+}
+
+.workspace-view {
+  display: none;
+  overflow-y: auto;
+  padding-top: 1rem;
+}
+
+.workspace-view.active {
+  display: block;
+}
+
+.workspace-empty {
+  padding: 3rem 1rem;
+  color: #687286;
+  text-align: center;
+}
+
+.workspace-actions {
+  margin-top: 1rem;
+}
+
+.proposal-card {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d7dee9;
+}
+
+.proposal-card .button {
+  margin-top: 0.75rem;
+}
+
+.button.compact {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .status-card,
 .form-card,
 .detail-card,
@@ -202,6 +414,53 @@ textarea {
   background: #dcefe9;
 }
 
+.policy-review,
+.document-list {
+  margin-top: 1.25rem;
+}
+
+.policy-finding {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d7dee9;
+  border-radius: 0.6rem;
+}
+
+.policy-finding blockquote {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 0.25rem solid #176b55;
+  background: #f4f7fa;
+}
+
+.status-badge.warning,
+.policy-not_met {
+  color: #831515;
+  background: #fbe4e4;
+}
+
+.policy-partially_met {
+  color: #6f4a00;
+  background: #fff1c9;
+}
+
+.table-shell {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d7dee9;
+  text-align: left;
+  vertical-align: top;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.65;
@@ -217,5 +476,25 @@ button:disabled {
   .status-card,
   .form-card {
     padding: 1.5rem;
+  }
+}
+
+@media (max-width: 60rem) {
+  .assistant-page {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-chat {
+    height: min(42rem, calc(100dvh - 7rem));
+    min-height: 32rem;
+    border-right: 0;
+    border-bottom: 1px solid #d7dee9;
+  }
+
+  .assistant-workspace {
+    overflow: visible;
   }
 }

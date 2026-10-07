@@ -18,7 +18,7 @@ Planning basis:
 ## M2 Job & Pre-Interview — 40h
 ### Job management/publishing — 8h
 - requirements + JD editor/preview — 2h
-- JD graph + Gemini + persistence — 2h
+- JD graph + Gemini + persistent company-policy RAG/evidence — 2h
 - approval state + publish guard — 1h
 - Bluesky adapter + posting persistence — 3h
 
