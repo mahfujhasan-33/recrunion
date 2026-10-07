@@ -34,8 +34,10 @@ from app.schemas.assistant import (
     RequirementDraft,
 )
 from app.schemas.job_descriptions import JobDescriptionUpdateRequest
+from app.schemas.job_publications import JobPublicationResponse
 from app.schemas.jobs import JobResponse, JobWriteRequest
 from app.services.job_descriptions import JobDescriptionService
+from app.services.job_publications import JobPublishingService
 from app.services.jobs import JobService
 from app.services.policy_reviews import PolicyReviewService
 
@@ -52,6 +54,7 @@ class AssistantService:
         job_service: JobService,
         description_service: JobDescriptionService,
         policy_service: PolicyReviewService,
+        publishing_service: JobPublishingService,
         assistant_graph: RecruiterAssistantGraph,
         *,
         worker_max_attempts: int,
@@ -61,6 +64,7 @@ class AssistantService:
         self._job_service = job_service
         self._description_service = description_service
         self._policy_service = policy_service
+        self._publishing_service = publishing_service
         self._assistant_graph = assistant_graph
         self._worker_max_attempts = worker_max_attempts
 
@@ -178,6 +182,12 @@ class AssistantService:
                 "Approval is consequential. Review the current JD and policy evidence, then "
                 "use Confirm approval in the workspace if you want to approve it."
             )
+        elif plan.intent == AssistantIntent.PUBLISH_JOB:
+            response = self._publication_guidance(conversation, retry=False)
+        elif plan.intent == AssistantIntent.RETRY_JOB_PUBLICATION:
+            response = self._publication_guidance(conversation, retry=True)
+        elif plan.intent == AssistantIntent.GET_PUBLICATION_STATUS:
+            response = self._publication_status(conversation)
         report(95, "Preparing the workspace")
         self._repository.add_message(
             AssistantMessage(
@@ -276,6 +286,36 @@ class AssistantService:
             )
         )
         return self.get_conversation(conversation.id)
+
+    def confirm_publication(
+        self,
+        conversation_id: UUID,
+        confirmed: bool,
+        *,
+        retry: bool,
+    ) -> JobPublicationResponse:
+        conversation = self._get_conversation(conversation_id)
+        if not confirmed or conversation.active_job_id is None:
+            raise AssistantActionError(
+                "Explicit confirmation is required to publish a job externally."
+            )
+        publication = (
+            self._publishing_service.retry(conversation.active_job_id)
+            if retry
+            else self._publishing_service.publish(conversation.active_job_id)
+        )
+        action = "retry" if retry else "publication"
+        self._repository.add_message(
+            AssistantMessage(
+                conversation_id=conversation.id,
+                role=AssistantMessageRole.ASSISTANT,
+                content=(
+                    f"The Bluesky {action} is queued. I will show progress and update "
+                    "the workspace when it finishes."
+                ),
+            )
+        )
+        return publication
 
     async def _generate(
         self,
@@ -386,6 +426,7 @@ class AssistantService:
             else None
         )
         review = self._policy_service.get_latest(job.id) if job and job.jd_content else None
+        publication = self._publishing_service.get_latest(job.id) if job else None
         actions: list[AssistantRequiredAction] = []
         draft = self._requirements_from_artifact(requirements)
         missing = self._missing_fields(draft)
@@ -425,14 +466,108 @@ class AssistantService:
                     message="Review the current JD and evidence before explicit approval.",
                 )
             )
+        elif job and job.status == JobStatus.APPROVED:
+            actions.append(
+                AssistantRequiredAction(
+                    code="PUBLISH_JOB",
+                    label="Publish to Bluesky",
+                    severity="CONFIRMATION_REQUIRED",
+                    message=(
+                        f"{job.code} · {job.title} · approved JD version {job.jd_version}. "
+                        "The policy review is current. Target: Bluesky. Publishing creates "
+                        "an external post and requires confirmation."
+                    ),
+                )
+            )
+        elif job and job.status == JobStatus.PUBLISHING:
+            actions.append(
+                AssistantRequiredAction(
+                    code="PUBLICATION_IN_PROGRESS",
+                    label="Publishing to Bluesky",
+                    severity="IN_PROGRESS",
+                    message="A publication attempt is already in progress.",
+                )
+            )
+        elif job and job.status == JobStatus.PUBLISH_FAILED:
+            actions.append(
+                AssistantRequiredAction(
+                    code="RETRY_JOB_PUBLICATION",
+                    label="Retry Bluesky publication",
+                    severity="CONFIRMATION_REQUIRED",
+                    message=(
+                        publication.error_message_safe
+                        if publication and publication.error_message_safe
+                        else "The last publication failed. An explicit retry is available."
+                    ),
+                )
+            )
         return AssistantWorkspaceResponse(
             requirements=self._artifact_response(requirements),
             description=self._artifact_response(description),
             proposal=self._artifact_response(proposal),
             job=job,
             policy_review=review,
+            publication=publication,
             required_actions=actions,
         )
+
+    def _publication_guidance(
+        self,
+        conversation: AssistantConversation,
+        *,
+        retry: bool,
+    ) -> str:
+        if conversation.active_job_id is None:
+            return "There is no active job to publish. Create a job description first."
+        job = self._job_service.get_job(conversation.active_job_id)
+        if job.status == JobStatus.DRAFT:
+            return (
+                "This job is still a draft. Generate and review its job description, then "
+                "approve it before publishing."
+            )
+        if job.status == JobStatus.GENERATED:
+            return (
+                "This job description still needs explicit recruiter approval before it can "
+                "be published. Review the JD and policy evidence first."
+            )
+        if job.status == JobStatus.APPROVED:
+            if retry:
+                return "This job has not failed publication. Use Publish to Bluesky instead."
+            return (
+                f"{job.code} is approved and ready to publish to Bluesky. Review the target "
+                "and approved JD version in the workspace, then confirm publication."
+            )
+        if job.status == JobStatus.PUBLISHING:
+            return "This job is already being published. Its progress is shown in the workspace."
+        if job.status == JobStatus.PUBLISHED:
+            return self._publication_status(conversation)
+        if job.status == JobStatus.PUBLISH_FAILED:
+            if retry:
+                return (
+                    "The last Bluesky publication failed. Review the safe failure message in "
+                    "the workspace, then explicitly confirm the retry."
+                )
+            return "The last publication failed. Use the explicit Retry Publishing action."
+        return "A closed job cannot be published."
+
+    def _publication_status(self, conversation: AssistantConversation) -> str:
+        if conversation.active_job_id is None:
+            return "There is no active job publication to report."
+        job = self._job_service.get_job(conversation.active_job_id)
+        publication = self._publishing_service.get_latest(job.id)
+        if publication is None:
+            return f"{job.code} has not been submitted for publication."
+        if job.status == JobStatus.PUBLISHED:
+            destination = (
+                f" View it at {publication.external_url}." if publication.external_url else ""
+            )
+            return f"{job.code} is published on Bluesky.{destination}"
+        if job.status == JobStatus.PUBLISH_FAILED:
+            safe_detail = publication.error_message_safe or "No safe detail is available."
+            return (
+                f"The Bluesky publication failed: {safe_detail} You can request an explicit retry."
+            )
+        return f"The Bluesky publication is {publication.status.value.lower()}."
 
     def _get_conversation(self, conversation_id: UUID) -> AssistantConversation:
         conversation = self._repository.get_conversation(conversation_id)

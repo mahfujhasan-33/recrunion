@@ -65,7 +65,7 @@ Human approval happens outside the graph.
 ### Recruiter Assistant Graph
 `interpret recruiter intent -> enforce typed action boundary -> service executes approved use case -> persist message/workspace artifact`
 
-The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval is never executed by the graph; the recruiter must use the explicit confirmation action.
+The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, publication state, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval and external publication are never executed by the graph; the recruiter must use explicit confirmation actions. Publishing intent is resolved by the assistant, then deterministic lifecycle rules and `JobPublishingService` control execution.
 
 ### F1 Screening Graph
 `load -> extract/structure -> embed/retrieve -> evaluate requirements -> validate evidence -> persist`
@@ -101,7 +101,7 @@ Policy reviews store immutable evidence snapshots, source identifiers, JD versio
 - COMPLETED
 - FAILED
 
-Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN` job types.
+Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
 
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
@@ -114,7 +114,7 @@ faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains
 ## External actions
 - JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
 - JobDescriptionGraph --`generate/evaluate JD`--> Gemini
-- PublishingService --`publish approved job`--> Bluesky
+- JobPublishingService --`JobPublicationContent`--> PublisherAdapter --> BlueskyPublisher --> Bluesky
 - ScreeningService --`embed/search evidence`--> SentenceTransformer + pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
 - InterviewService --`create/join room`--> Daily

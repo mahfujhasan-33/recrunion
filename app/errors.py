@@ -152,3 +152,53 @@ class AssistantActionError(RecrUnionError):
 class AssistantValidationError(RecrUnionError):
     code = "ASSISTANT_INPUT_INVALID"
     status_code = 422
+
+
+class JobPublicationNotFoundError(RecrUnionError):
+    code = "JOB_PUBLICATION_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Job publication was not found.")
+
+
+class JobPublicationContentError(RecrUnionError):
+    code = "JOB_PUBLICATION_CONTENT_INVALID"
+    status_code = 422
+
+
+class PublisherError(RecrUnionError):
+    code = "PUBLISHER_UNAVAILABLE"
+    status_code = 502
+
+
+class PublisherConfigurationError(PublisherError):
+    code = "PUBLISHER_NOT_CONFIGURED"
+    status_code = 503
+
+
+class PublisherAuthenticationError(PublisherError):
+    code = "PUBLISHER_AUTHENTICATION_FAILED"
+
+
+class PublisherRateLimitError(PublisherError):
+    code = "PUBLISHER_RATE_LIMITED"
+    status_code = 503
+
+
+class PublisherTimeoutError(PublisherError):
+    code = "PUBLISHER_TIMEOUT"
+    status_code = 504
+
+
+class PublisherRejectedContentError(PublisherError):
+    code = "PUBLISHER_CONTENT_REJECTED"
+    status_code = 422
+
+
+class PublisherInvalidResponseError(PublisherError):
+    code = "PUBLISHER_INVALID_RESPONSE"
+
+
+class PublisherUnavailableError(PublisherError):
+    code = "PUBLISHER_UNAVAILABLE"

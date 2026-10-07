@@ -11,6 +11,7 @@ from app.models.assistant import (
     AssistantMessageRole,
 )
 from app.models.jobs import EmploymentType
+from app.schemas.job_publications import JobPublicationResponse
 from app.schemas.jobs import JobResponse
 from app.schemas.policy_findings import PolicyReviewResponse
 
@@ -24,6 +25,9 @@ class AssistantIntent(StrEnum):
     ENHANCE_DESCRIPTION = "ENHANCE_DESCRIPTION"
     RECHECK_POLICY = "RECHECK_POLICY"
     APPROVE_DESCRIPTION = "APPROVE_DESCRIPTION"
+    PUBLISH_JOB = "PUBLISH_JOB"
+    RETRY_JOB_PUBLICATION = "RETRY_JOB_PUBLICATION"
+    GET_PUBLICATION_STATUS = "GET_PUBLICATION_STATUS"
     HELP = "HELP"
 
 
@@ -91,6 +95,7 @@ class AssistantWorkspaceResponse(BaseModel):
     proposal: AssistantArtifactResponse | None
     job: JobResponse | None
     policy_review: PolicyReviewResponse | None
+    publication: JobPublicationResponse | None
     required_actions: list[AssistantRequiredAction]
 
 

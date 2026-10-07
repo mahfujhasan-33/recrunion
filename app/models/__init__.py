@@ -20,6 +20,7 @@ from app.models.job_policy import (
     JobDescriptionSection,
     PolicyAlignmentStatus,
 )
+from app.models.job_publications import JobPublication, PublicationStatus
 from app.models.jobs import (
     EmploymentType,
     Job,
@@ -46,12 +47,14 @@ __all__ = [
     "JobDescriptionPolicyFinding",
     "JobDescriptionPolicyReview",
     "JobDescriptionSection",
+    "JobPublication",
     "JobRequirement",
     "JobStatus",
     "PolicyAlignmentStatus",
     "ProcessingJob",
     "ProcessingJobStatus",
     "ProcessingJobType",
+    "PublicationStatus",
     "RequirementCategory",
     "RequirementType",
 ]

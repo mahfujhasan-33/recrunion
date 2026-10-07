@@ -26,6 +26,12 @@ Lifecycle:
 Failure:
 `PUBLISH_FAILED`
 
+M3 publishing runs as a PostgreSQL-backed worker task. The normal job page and the
+recruiter assistant both call the same deterministic publishing service. A chat request
+only proposes the typed publication action; the recruiter must explicitly confirm before
+the approved job is sent to Bluesky. Failed attempts require an explicit retry, while
+`PUBLISHING` and `PUBLISHED` reject duplicate publication.
+
 ## Application intake
 Candidate applications are collected externally through one recruitment email. No inbound email integration in baseline scope.
 Flow:

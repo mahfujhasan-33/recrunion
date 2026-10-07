@@ -121,4 +121,4 @@ def test_generated_job_page_always_offers_policy_recheck(
 
     assert response.status_code == 200
     assert 'id="recheck-policy"' in response.text
-    assert "/static/js/jobs.js?v=20261007-policy-enhancement-2" in response.text
+    assert "/static/js/jobs.js?v=20261007-m3-publishing-1" in response.text

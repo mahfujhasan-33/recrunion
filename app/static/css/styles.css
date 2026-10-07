@@ -234,6 +234,19 @@ body {
   border-top: 1px solid #d7dee9;
 }
 
+.publication-summary {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d7dee9;
+  border-radius: 0.6rem;
+  background: #f7faf9;
+}
+
+.publication-card progress {
+  width: 100%;
+  accent-color: #176b55;
+}
+
 .proposal-card .button {
   margin-top: 0.75rem;
 }

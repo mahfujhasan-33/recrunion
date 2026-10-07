@@ -56,8 +56,8 @@ class RecruiterAssistantGraph:
     def _enforce_action_boundary(
         state: RecruiterAssistantState,
     ) -> RecruiterAssistantState:
-        # The structured enum prevents arbitrary tools. Consequential approval remains
-        # a confirmation request and is never executed by this graph.
+        # The structured enum prevents arbitrary tools. Consequential approval and
+        # publication remain confirmation requests and are never executed by this graph.
         return {**state, "error": None}
 
     def _route_after_provider(

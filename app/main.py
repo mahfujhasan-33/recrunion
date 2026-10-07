@@ -15,6 +15,7 @@ from app.routers import (
     company_documents_web,
     health,
     home,
+    job_publications_api,
     jobs_api,
     jobs_web,
     tasks_api,
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     application.include_router(assistant_api.router)
     application.include_router(health.router)
     application.include_router(jobs_api.router)
+    application.include_router(job_publications_api.router)
     application.include_router(jobs_web.router)
     application.include_router(company_documents_api.router)
     application.include_router(company_documents_web.router)

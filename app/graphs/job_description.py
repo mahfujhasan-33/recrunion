@@ -36,16 +36,68 @@ from app.schemas.policy_findings import (
     PolicyEvidence,
 )
 
-PROTECTED_REQUIREMENT_TERMS = {
+PROTECTED_REQUIREMENT_TERMS = (
     "age",
+    "disability",
     "ethnicity",
     "gender",
+    "gender identity",
+    "female",
+    "male",
     "marital status",
+    "men",
     "nationality",
     "pregnancy",
     "race",
     "religion",
-}
+    "sex",
+    "sexual orientation",
+    "women",
+)
+
+_PROTECTED_TERM_PATTERN = (
+    "(?:"
+    + "|".join(
+        re.escape(term) for term in sorted(PROTECTED_REQUIREMENT_TERMS, key=len, reverse=True)
+    )
+    + ")"
+)
+_SAFE_PROTECTED_CONTEXT_PATTERN = re.compile(
+    r"\b(?:equal[- ]opportunity|does not discriminate|do not discriminate|"
+    r"without regard to|regardless of|reasonable accommodations?|"
+    r"all qualified applicants)\b",
+    re.IGNORECASE,
+)
+_HARD_PROTECTED_RESTRICTION_PATTERNS = (
+    re.compile(
+        rf"\b(?:only|exclusively|must be|required to be|preferred)\b.{{0,60}}"
+        rf"\b{_PROTECTED_TERM_PATTERN}\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b{_PROTECTED_TERM_PATTERN}\b.{{0,60}}"
+        r"\b(?:only|exclusively|required|preferred|ineligible|excluded|rejected)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:under|over|below|above|between)\b.{0,30}\bage\b|"
+        r"\bage\b.{0,30}\b(?:under|over|below|above|between)\b",
+        re.IGNORECASE,
+    ),
+)
+_PROTECTED_INFLUENCE_PATTERNS = (
+    re.compile(
+        rf"\b(?:based on|because of|according to|on the basis of)\b.{{0,60}}"
+        rf"\b{_PROTECTED_TERM_PATTERN}\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b{_PROTECTED_TERM_PATTERN}\b.{{0,60}}"
+        r"\b(?:determines?|affects?|influences?)\b.{{0,30}}"
+        r"\b(?:selection|eligibility|hiring)\b",
+        re.IGNORECASE,
+    ),
+)
 
 logger = logging.getLogger(__name__)
 
@@ -519,10 +571,16 @@ def apply_authoritative_requirements(
 
 
 def contains_protected_requirement(text: str) -> bool:
-    normalized = text.casefold()
-    return any(
-        re.search(rf"\b{re.escape(term)}\b", normalized) for term in PROTECTED_REQUIREMENT_TERMS
-    )
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n+", text):
+        if not re.search(rf"\b{_PROTECTED_TERM_PATTERN}\b", sentence, re.IGNORECASE):
+            continue
+        if any(pattern.search(sentence) for pattern in _HARD_PROTECTED_RESTRICTION_PATTERNS):
+            return True
+        if _SAFE_PROTECTED_CONTEXT_PATTERN.search(sentence):
+            continue
+        if any(pattern.search(sentence) for pattern in _PROTECTED_INFLUENCE_PATTERNS):
+            return True
+    return False
 
 
 def _render_items(values: list[str]) -> str:

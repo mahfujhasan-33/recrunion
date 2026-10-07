@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401
+from app.adapters.publisher import JobPublicationContent, PublicationResult
 from app.database import Base, get_db_session
-from app.dependencies import get_embedding_adapter, get_llm_adapter
-from app.errors import LLMProviderError
+from app.dependencies import get_embedding_adapter, get_llm_adapter, get_publisher_adapter
+from app.errors import LLMProviderError, PublisherError
 from app.main import create_app
 from app.models.jobs import EmploymentType
 from app.schemas.assistant import (
@@ -50,6 +51,21 @@ class FakeLLMAdapter:
         request: AssistantTurnRequest,
     ) -> AssistantTurnPlan:
         message = request.user_message.casefold()
+        if "retry" in message and "publish" in message:
+            return AssistantTurnPlan(
+                intent=AssistantIntent.RETRY_JOB_PUBLICATION,
+                response_message="I will prepare an explicit publication retry.",
+            )
+        if "publish" in message:
+            return AssistantTurnPlan(
+                intent=AssistantIntent.PUBLISH_JOB,
+                response_message="I will check whether this job can be published.",
+            )
+        if "publication status" in message:
+            return AssistantTurnPlan(
+                intent=AssistantIntent.GET_PUBLICATION_STATUS,
+                response_message="I will check the publication status.",
+            )
         if "generate" in message:
             return AssistantTurnPlan(
                 intent=AssistantIntent.GENERATE_DESCRIPTION,
@@ -176,6 +192,26 @@ class FakeEmbeddingAdapter:
         return [1.0] + [0.0] * 767
 
 
+class FakePublisherAdapter:
+    provider = "BLUESKY"
+
+    def __init__(self) -> None:
+        self.contents: list[JobPublicationContent] = []
+        self.errors: list[PublisherError] = []
+
+    async def publish_job(self, content: JobPublicationContent) -> PublicationResult:
+        self.contents.append(content)
+        if self.errors:
+            raise self.errors.pop(0)
+        return PublicationResult(
+            provider=self.provider,
+            external_post_uri=("at://did:plc:recrunion/app.bsky.feed.post/3m3recruniontest"),
+            external_record_id="bafyreirecruniontest",
+            external_url=("https://bsky.app/profile/did:plc:recrunion/post/3m3recruniontest"),
+            published_at=content.created_at,
+        )
+
+
 @pytest.fixture
 def database_engine() -> Iterator[Engine]:
     engine = create_engine(
@@ -206,10 +242,16 @@ def fake_embedding_adapter() -> FakeEmbeddingAdapter:
 
 
 @pytest.fixture
+def fake_publisher_adapter() -> FakePublisherAdapter:
+    return FakePublisherAdapter()
+
+
+@pytest.fixture
 def application(
     database_engine: Engine,
     fake_llm_adapter: FakeLLMAdapter,
     fake_embedding_adapter: FakeEmbeddingAdapter,
+    fake_publisher_adapter: FakePublisherAdapter,
 ) -> Iterator[FastAPI]:
     app = create_app()
 
@@ -220,6 +262,7 @@ def application(
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_llm_adapter] = lambda: fake_llm_adapter
     app.dependency_overrides[get_embedding_adapter] = lambda: fake_embedding_adapter
+    app.dependency_overrides[get_publisher_adapter] = lambda: fake_publisher_adapter
     yield app
     app.dependency_overrides.clear()
 

@@ -82,7 +82,7 @@
           <button id="approve-description" class="button" type="button"{% if not policy_review.is_current %} disabled{% endif %}>Approve description</button>
         </div>
       </form>
-    {% elif job.status.value == "APPROVED" %}
+    {% elif job.status.value in ["APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
       <p class="success-message">Approved{% if job.approved_at %} on {{ job.approved_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}.</p>
       <pre class="description-content">{{ job.jd_content }}</pre>
     {% endif %}
@@ -93,7 +93,40 @@
     <div id="description-feedback" class="form-error" role="status" hidden></div>
   </section>
 
-  {% if job.status.value in ["GENERATED", "APPROVED"] %}
+  {% if job.status.value in ["APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
+    <section
+      class="detail-card publication-card"
+      data-publication-task-id="{{ publication.processing_task_id if publication else '' }}"
+    >
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">External announcement</p>
+          <h2>Bluesky publication</h2>
+        </div>
+        <span class="status-badge{% if job.status.value == 'PUBLISH_FAILED' %} warning{% endif %}">{{ job.status.value }}</span>
+      </div>
+      {% if job.status.value == "APPROVED" %}
+        <p>Publish a concise announcement generated deterministically from this approved job.</p>
+        <button id="publish-job" class="button" type="button">Publish job</button>
+      {% elif job.status.value == "PUBLISHING" %}
+        <p id="publication-progress-message">{{ publication.status.value | title if publication else 'Publishing' }}</p>
+        <progress id="publication-progress" max="100" value="0">0%</progress>
+      {% elif job.status.value == "PUBLISHED" and publication %}
+        <p class="success-message">
+          Published to {{ publication.provider | title }}{% if publication.published_at %} on {{ publication.published_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}.
+        </p>
+        {% if publication.external_url %}
+          <a class="button secondary" href="{{ publication.external_url }}" target="_blank" rel="noopener noreferrer">View Bluesky post</a>
+        {% endif %}
+      {% elif job.status.value == "PUBLISH_FAILED" %}
+        <p>{{ publication.error_message_safe if publication and publication.error_message_safe else 'The publication could not be completed.' }}</p>
+        <button id="retry-publication" class="button" type="button">Retry publishing</button>
+      {% endif %}
+      <div id="publication-feedback" class="form-error" role="status" hidden></div>
+    </section>
+  {% endif %}
+
+  {% if job.status.value in ["GENERATED", "APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
     <section class="detail-card policy-review" data-review-current="{{ 'true' if policy_review.is_current else 'false' }}">
       <div class="card-heading">
         <div>
@@ -139,5 +172,5 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/js/jobs.js?v=20261007-policy-enhancement-2" defer></script>
+  <script src="/static/js/jobs.js?v=20261007-m3-publishing-1" defer></script>
 {% endblock %}

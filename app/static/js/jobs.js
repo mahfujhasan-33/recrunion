@@ -159,3 +159,63 @@ if (enhanceDescriptionButton && jobId) {
     ),
   );
 }
+
+async function pollPublicationTask(taskId) {
+  const progress = document.querySelector("#publication-progress");
+  const message = document.querySelector("#publication-progress-message");
+  if (!taskId || !progress || !message) return;
+  try {
+    const task = await requestJobAction(`/api/v1/tasks/${taskId}`);
+    progress.value = task.progress;
+    progress.textContent = `${task.progress}%`;
+    message.textContent = `${task.progress_message} · ${task.progress}%`;
+    if (task.status === "COMPLETED" || task.status === "FAILED") {
+      window.location.reload();
+      return;
+    }
+    window.setTimeout(() => pollPublicationTask(taskId), 1000);
+  } catch (error) {
+    setActionFeedback(error.message, true, "#publication-feedback");
+  }
+}
+
+async function queuePublication(button, endpoint, confirmation) {
+  if (!window.confirm(confirmation)) return;
+  button.disabled = true;
+  setActionFeedback("Queueing Bluesky publication…", false, "#publication-feedback");
+  try {
+    const publication = await requestJobAction(endpoint, { method: "POST" });
+    window.location.reload();
+    pollPublicationTask(publication.processing_task_id);
+  } catch (error) {
+    setActionFeedback(error.message, true, "#publication-feedback");
+    button.disabled = false;
+  }
+}
+
+const publishButton = document.querySelector("#publish-job");
+if (publishButton && jobId) {
+  publishButton.addEventListener("click", () =>
+    queuePublication(
+      publishButton,
+      `/api/v1/jobs/${jobId}/publish`,
+      "Publish this approved job to Bluesky? This creates an external post.",
+    ),
+  );
+}
+
+const retryPublicationButton = document.querySelector("#retry-publication");
+if (retryPublicationButton && jobId) {
+  retryPublicationButton.addEventListener("click", () =>
+    queuePublication(
+      retryPublicationButton,
+      `/api/v1/jobs/${jobId}/publication/retry`,
+      "Retry publishing this approved job to Bluesky? This may create an external post.",
+    ),
+  );
+}
+
+const publicationCard = document.querySelector(".publication-card");
+if (publicationCard?.dataset.publicationTaskId && document.querySelector("#publication-progress")) {
+  pollPublicationTask(publicationCard.dataset.publicationTaskId);
+}

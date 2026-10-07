@@ -11,6 +11,7 @@ from app.database import Base
 class ProcessingJobType(StrEnum):
     COMPANY_DOCUMENT_INGESTION = "COMPANY_DOCUMENT_INGESTION"
     ASSISTANT_TURN = "ASSISTANT_TURN"
+    JOB_PUBLICATION = "JOB_PUBLICATION"
 
 
 class ProcessingJobStatus(StrEnum):

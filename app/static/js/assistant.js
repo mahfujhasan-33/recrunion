@@ -140,8 +140,50 @@ function renderRequiredActions(actions) {
       button.addEventListener("click", () => sendMessage("Recheck policy alignment."));
       card.append(button);
     }
+    if (action.code === "PUBLISH_JOB" || action.code === "RETRY_JOB_PUBLICATION") {
+      const retry = action.code === "RETRY_JOB_PUBLICATION";
+      const button = element(
+        "button",
+        "button compact",
+        retry ? "Confirm retry" : "Publish to Bluesky",
+      );
+      button.type = "button";
+      button.addEventListener("click", () => confirmPublication(retry));
+      card.append(button);
+    }
     container.append(card);
   });
+}
+
+function renderPublication(publication) {
+  if (!publication) return null;
+  const card = element("article", "publication-summary");
+  const heading = element("div", "card-heading");
+  heading.append(element("strong", "", `Bluesky attempt ${publication.attempt_number}`));
+  heading.append(
+    element(
+      "span",
+      `status-badge ${publication.status === "FAILED" ? "warning" : ""}`,
+      publication.status,
+    ),
+  );
+  card.append(heading);
+  if (publication.published_at) {
+    card.append(
+      element("p", "hint", `Published ${new Date(publication.published_at).toLocaleString()}`),
+    );
+  }
+  if (publication.error_message_safe) {
+    card.append(element("p", "", publication.error_message_safe));
+  }
+  if (publication.external_url) {
+    const link = element("a", "button secondary compact", "View Bluesky post");
+    link.href = publication.external_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    card.append(link);
+  }
+  return card;
 }
 
 function renderDescription(workspace) {
@@ -180,6 +222,8 @@ function renderDescription(workspace) {
     actions.append(approve);
     container.append(actions);
   }
+  const publication = renderPublication(workspace.publication);
+  if (publication) container.append(publication);
   const proposal = workspace.proposal;
   if (proposal?.status === "PROPOSED") {
     const proposalCard = element("article", "proposal-card");
@@ -253,6 +297,15 @@ function render(state) {
   renderEvidence(state.workspace.policy_review);
   document.querySelector("#workspace-title").textContent = state.workspace.job?.title || state.title;
   document.querySelector("#workspace-status").textContent = state.workspace.job?.status || state.workspace.requirements?.status || "WORKING";
+  const publication = state.workspace.publication;
+  if (
+    !activeTaskId &&
+    publication &&
+    ["QUEUED", "PUBLISHING"].includes(publication.status)
+  ) {
+    activeTaskId = publication.processing_task_id;
+    pollTask();
+  }
 }
 
 async function refreshConversation() {
@@ -296,6 +349,7 @@ async function pollTask() {
     }
     if (task.status === "FAILED") {
       activeTaskId = null;
+      await refreshConversation();
       showError(task.error_message_safe || "The assistant task failed.");
       return;
     }
@@ -344,6 +398,34 @@ async function confirmApproval() {
         body: JSON.stringify({ confirmed: true }),
       }),
     );
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+async function confirmPublication(retry) {
+  const action = retry ? "retry publishing" : "publish";
+  if (
+    !window.confirm(
+      `Confirm that you want to ${action} this approved job on Bluesky? This is an external action.`,
+    )
+  ) {
+    return;
+  }
+  clearError();
+  try {
+    const endpoint = retry ? "publication/retry" : "publish";
+    const publication = await requestJSON(
+      `/api/v1/assistant/conversations/${conversation.id}/${endpoint}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmed: true }),
+      },
+    );
+    activeTaskId = publication.processing_task_id;
+    await refreshConversation();
+    pollTask();
   } catch (error) {
     showError(error.message);
   }

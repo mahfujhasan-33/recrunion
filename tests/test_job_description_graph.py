@@ -7,7 +7,7 @@ from conftest import FakeEmbeddingAdapter, FakeLLMAdapter
 from sqlalchemy.orm import Session
 
 from app.errors import JobDescriptionValidationError, LLMProviderError
-from app.graphs.job_description import JobDescriptionGraph
+from app.graphs.job_description import JobDescriptionGraph, contains_protected_requirement
 from app.graphs.job_description_enhancement import JobDescriptionEnhancementGraph
 from app.models.jobs import JobStatus
 from app.repositories.jobs import JobRepository
@@ -164,6 +164,32 @@ async def test_graph_rejects_protected_language_in_generated_narrative(
     assert persisted is not None
     assert persisted.status == JobStatus.DRAFT
     assert persisted.jd_content is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "We are an equal-opportunity employer regardless of age, race, gender, or religion.",
+        "All qualified applicants are considered without regard to disability or pregnancy.",
+        "We do not discriminate based on race, gender, religion, or sexual orientation.",
+        "Reasonable accommodations are available for people with disabilities.",
+    ],
+)
+def test_protected_requirement_validation_allows_inclusive_language(text: str) -> None:
+    assert contains_protected_requirement(text) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Choose candidates based on their religion.",
+        "Applicants must be below a specified age.",
+        "Male candidates are preferred.",
+        "Pregnancy makes an applicant ineligible.",
+    ],
+)
+def test_protected_requirement_validation_rejects_discriminatory_language(text: str) -> None:
+    assert contains_protected_requirement(text) is True
 
 
 def build_graph(

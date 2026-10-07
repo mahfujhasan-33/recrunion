@@ -26,6 +26,9 @@ Supported intents:
 - ENHANCE_DESCRIPTION: propose an evidence-backed JD enhancement for a generated job.
 - RECHECK_POLICY: re-evaluate the current JD against company-policy evidence.
 - APPROVE_DESCRIPTION: request recruiter confirmation before approval.
+- PUBLISH_JOB: request publication of the active approved job.
+- RETRY_JOB_PUBLICATION: explicitly retry a failed publication.
+- GET_PUBLICATION_STATUS: report the active job's publication state.
 - HELP: answer workflow questions without changing state.
 
 For DRAFT_REQUIREMENTS or UPDATE_REQUIREMENTS, return the complete revised requirements,

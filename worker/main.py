@@ -4,13 +4,14 @@ import tempfile
 import time
 from pathlib import Path
 
+from app.adapters.bluesky import BlueskyPublisher
 from app.adapters.document_parser import CompanyDocumentParser
 from app.adapters.document_storage import LocalDocumentStorage
 from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
 from app.config import get_settings
 from app.database import SessionFactory
-from app.dependencies import build_assistant_service
+from app.dependencies import build_assistant_service, build_job_publishing_service
 from app.errors import CompanyDocumentValidationError, RecrUnionError
 from app.models.processing_jobs import ProcessingJobType
 from app.repositories.company_documents import CompanyDocumentRepository
@@ -82,6 +83,24 @@ def process_next_task() -> bool:
                         ),
                     )
                 )
+            elif task.job_type == ProcessingJobType.JOB_PUBLICATION:
+                publishing = build_job_publishing_service(
+                    session,
+                    BlueskyPublisher(
+                        identifier=settings.bluesky_identifier,
+                        app_password=settings.bluesky_app_password,
+                        service_url=settings.bluesky_service_url,
+                        timeout_seconds=settings.bluesky_timeout_seconds,
+                    ),
+                )
+                asyncio.run(
+                    publishing.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    )
+                )
             else:
                 raise CompanyDocumentValidationError("Unsupported background job type.")
             task_repository.complete(task)
@@ -89,10 +108,15 @@ def process_next_task() -> bool:
             if isinstance(error, CompanyDocumentValidationError):
                 task.max_attempts = task.attempt_count
             code = error.code if isinstance(error, RecrUnionError) else "BACKGROUND_TASK_FAILED"
+            safe_message = (
+                str(error)
+                if isinstance(error, RecrUnionError)
+                else "The background task could not be completed."
+            )
             task_repository.fail_or_retry(
                 task,
                 code,
-                "The background task could not be completed.",
+                safe_message,
             )
             logger.warning(
                 "Background task failed",
