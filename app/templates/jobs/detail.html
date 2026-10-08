@@ -18,8 +18,13 @@
   </div>
 
   <section class="detail-card">
-    <h2>Application</h2>
-    <p><a href="mailto:{{ job.application_email }}">{{ job.application_email }}</a></p>
+    <div class="card-heading">
+      <div>
+        <h2>Applications</h2>
+        <p><a href="mailto:{{ job.application_email }}">{{ job.application_email }}</a></p>
+      </div>
+      <a class="button secondary" href="/jobs/{{ job.id }}/applications">Manage applications</a>
+    </div>
   </section>
 
   <div class="detail-grid">

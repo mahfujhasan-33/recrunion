@@ -94,6 +94,15 @@ Original PDF, DOCX, and TXT files are stored in a managed Docker volume. Postgre
 
 Policy reviews store immutable evidence snapshots, source identifiers, JD version/hash, related JD section, status, and explanation. This preserves historical review traceability after a source document is deleted, without retaining the complete deleted document. A review is current only when its JD version and content hash match the editable JD.
 
+## Application intake
+Recruiter batch upload accepts PDF CVs for an existing job. `ApplicationIntakeService` validates
+and hashes each file, applies job-scoped duplicate detection, stores it through the minimal
+`DocumentStorage` boundary, and persists `Candidate`, `JobApplication`, and `CandidateDocument`
+records. `LocalDocumentStorage` writes generated filenames beneath
+`/data/applications/<job-code>/`; client filenames never determine physical paths. M4 is
+synchronous because it performs only bounded validation, hashing, and local storage. CV parsing,
+embeddings, screening, ranking, and external Drive/Form/email intake are deferred.
+
 ## Background processing
 `processing_jobs` statuses:
 - QUEUED

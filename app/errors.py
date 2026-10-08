@@ -8,6 +8,23 @@ class RecrUnionError(Exception):
     status_code = 400
 
 
+class DocumentStorageError(RecrUnionError):
+    """Raised when a managed document cannot be stored or retrieved safely."""
+
+    code = "DOCUMENT_STORAGE_FAILED"
+    status_code = 500
+
+
+class DocumentStorageValidationError(DocumentStorageError):
+    code = "DOCUMENT_STORAGE_INVALID"
+    status_code = 422
+
+
+class DocumentStorageTooLargeError(DocumentStorageValidationError):
+    code = "DOCUMENT_STORAGE_TOO_LARGE"
+    status_code = 413
+
+
 class JobNotFoundError(RecrUnionError):
     """Raised when a requested job does not exist."""
 
@@ -202,3 +219,11 @@ class PublisherInvalidResponseError(PublisherError):
 
 class PublisherUnavailableError(PublisherError):
     code = "PUBLISHER_UNAVAILABLE"
+
+
+class ApplicationNotFoundError(RecrUnionError):
+    code = "APPLICATION_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Application was not found.")

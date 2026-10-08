@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Applications · {{ job.title }} · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">{{ job.code }}</p>
+      <h1>Applications for {{ job.title }}</h1>
+      <p>Upload synthetic or approved PDF CVs for recruiter-managed intake.</p>
+    </div>
+    <a class="button secondary" href="/jobs/{{ job.id }}">Back to job</a>
+  </div>
+
+  <form id="application-upload-form" class="form-card" enctype="multipart/form-data" data-job-id="{{ job.id }}">
+    <label>
+      PDF CVs (maximum {{ max_cv_size_mb }} MiB each)
+      <input id="application-files" name="files" type="file" accept="application/pdf,.pdf" multiple required>
+    </label>
+    <div>
+      <strong>Selected files</strong>
+      <ul id="selected-application-files" class="hint"><li>No files selected.</li></ul>
+    </div>
+    <div class="actions">
+      <button id="upload-applications" class="button" type="submit">Upload CVs</button>
+      <span class="hint">Each file is validated and imported independently.</span>
+    </div>
+    <div id="application-feedback" class="form-error" role="status" hidden></div>
+  </form>
+
+  <section id="application-upload-summary" class="detail-card" hidden>
+    <h2>Upload complete</h2>
+    <div class="detail-grid">
+      <p><strong id="summary-received">0</strong><br><span class="hint">Received</span></p>
+      <p><strong id="summary-imported">0</strong><br><span class="hint">Imported</span></p>
+      <p><strong id="summary-duplicates">0</strong><br><span class="hint">Duplicates</span></p>
+      <p><strong id="summary-invalid">0</strong><br><span class="hint">Invalid</span></p>
+      <p><strong id="summary-failed">0</strong><br><span class="hint">Failed</span></p>
+    </div>
+    <ul id="application-upload-results"></ul>
+  </section>
+
+  <section class="detail-card document-list">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Recruiter intake</p>
+        <h2>Imported applications</h2>
+      </div>
+      <span id="application-count" class="status-badge">{{ applications | length }}</span>
+    </div>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr><th>Reference</th><th>Candidate</th><th>CV filename</th><th>Size</th><th>Source</th><th>Status</th><th>Imported</th></tr>
+        </thead>
+        <tbody id="applications-table-body">
+          {% for application in applications %}
+            <tr>
+              <td>{{ application.reference }}</td>
+              <td>{{ application.candidate_display_reference }}</td>
+              <td>{{ application.original_filename }}</td>
+              <td>{{ (application.file_size / 1024) | round(1) }} KiB</td>
+              <td>{{ application.source.value | replace('_', ' ') | title }}</td>
+              <td><span class="status-badge">{{ application.status.value }}</span></td>
+              <td>{{ application.imported_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+            </tr>
+          {% else %}
+            <tr data-empty-row><td colspan="7">No applications have been imported.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/applications.js?v=20261008-m4-1" defer></script>{% endblock %}

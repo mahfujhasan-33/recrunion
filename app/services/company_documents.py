@@ -9,7 +9,10 @@ from app.errors import (
     CompanyDocumentBusyError,
     CompanyDocumentDuplicateError,
     CompanyDocumentNotFoundError,
+    CompanyDocumentTooLargeError,
     CompanyDocumentValidationError,
+    DocumentStorageTooLargeError,
+    DocumentStorageValidationError,
 )
 from app.models.company_documents import (
     CompanyDocument,
@@ -48,7 +51,14 @@ class CompanyDocumentService:
     ) -> CompanyDocumentUploadResponse:
         safe_filename = _safe_filename(filename)
         suffix = Path(safe_filename).suffix.casefold()
-        stored = self._storage.store(source, suffix)
+        try:
+            stored = self._storage.save(source, suffix)
+        except DocumentStorageTooLargeError as error:
+            raise CompanyDocumentTooLargeError(
+                "Company document exceeds the configured upload limit."
+            ) from error
+        except DocumentStorageValidationError as error:
+            raise CompanyDocumentValidationError(str(error)) from error
         document: CompanyDocument | None = None
         try:
             path = self._storage.path_for(stored.storage_key)

@@ -22,6 +22,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       COMPANY_DOCUMENTS_ROOT: ${COMPANY_DOCUMENTS_ROOT:-/data/company-documents}
       MAX_COMPANY_DOCUMENT_SIZE_MB: ${MAX_COMPANY_DOCUMENT_SIZE_MB:-10}
+      APPLICATIONS_ROOT: ${APPLICATIONS_ROOT:-/data/applications}
+      MAX_CV_SIZE_MB: ${MAX_CV_SIZE_MB:-10}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
@@ -34,6 +36,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - company_document_data:/data/company-documents
+      - application_data:/data/applications
     ports:
       - "${APP_PORT:-8000}:${APP_PORT:-8000}"
     depends_on:
@@ -116,3 +119,4 @@ services:
 volumes:
   postgres_data:
   company_document_data:
+  application_data:

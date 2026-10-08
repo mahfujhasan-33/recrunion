@@ -13,8 +13,8 @@ COPY worker ./worker
 
 RUN pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 recrunion \
-    && mkdir -p /data/company-documents \
-    && chown -R recrunion:recrunion /data/company-documents
+    && mkdir -p /data/company-documents /data/applications \
+    && chown -R recrunion:recrunion /data/company-documents /data/applications
 
 USER recrunion
 

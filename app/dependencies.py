@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.bluesky import BlueskyPublisher
 from app.adapters.document_parser import CompanyDocumentParser
-from app.adapters.document_storage import LocalDocumentStorage
+from app.adapters.document_storage import DocumentStorage, LocalDocumentStorage
 from app.adapters.embeddings import EmbeddingAdapter
 from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.llm import LLMAdapter
@@ -17,12 +17,14 @@ from app.errors import EmbeddingProviderError, LLMConfigurationError
 from app.graphs.job_description import JobDescriptionGraph
 from app.graphs.job_description_enhancement import JobDescriptionEnhancementGraph
 from app.graphs.recruiter_assistant import RecruiterAssistantGraph
+from app.repositories.applications import ApplicationRepository
 from app.repositories.assistant import AssistantRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
 from app.repositories.policy_knowledge import PolicyKnowledgeRepository, PolicyReviewRepository
 from app.repositories.processing_jobs import ProcessingJobRepository
+from app.services.application_intake import ApplicationIntakeService
 from app.services.assistant import AssistantService
 from app.services.company_documents import CompanyDocumentService
 from app.services.job_descriptions import JobDescriptionService
@@ -39,6 +41,27 @@ def get_job_service(
     """Provide a job service using the request-scoped database session."""
 
     return JobService(JobRepository(session))
+
+
+def get_application_document_storage() -> DocumentStorage:
+    settings = get_settings()
+    return LocalDocumentStorage(
+        settings.applications_root,
+        settings.max_cv_size_mb * 1024 * 1024,
+    )
+
+
+def get_application_intake_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[DocumentStorage, Depends(get_application_document_storage)],
+) -> ApplicationIntakeService:
+    settings = get_settings()
+    return ApplicationIntakeService(
+        JobRepository(session),
+        ApplicationRepository(session),
+        storage,
+        max_file_size_bytes=settings.max_cv_size_mb * 1024 * 1024,
+    )
 
 
 def get_llm_adapter() -> LLMAdapter:

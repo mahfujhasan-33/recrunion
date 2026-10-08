@@ -9,6 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.errors import RecrUnionError
 from app.routers import (
+    applications_api,
+    applications_web,
     assistant_api,
     assistant_web,
     company_documents_api,
@@ -40,6 +42,8 @@ def create_app() -> FastAPI:
     application = FastAPI(title="RecrUnion", version="0.1.0")
     application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     application.include_router(home.router)
+    application.include_router(applications_web.router)
+    application.include_router(applications_api.router)
     application.include_router(assistant_web.router)
     application.include_router(assistant_api.router)
     application.include_router(health.router)

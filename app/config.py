@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     gemini_max_retries: int = Field(default=1, ge=0, le=5)
     company_documents_root: Path = Path("data/company_documents")
     max_company_document_size_mb: int = Field(default=10, ge=1, le=100)
+    applications_root: Path = Path("data/applications")
+    max_cv_size_mb: int = Field(default=10, ge=1, le=100)
     embedding_provider: Literal["ollama"] = "ollama"
     embedding_model: str = "nomic-embed-text"
     embedding_dimension: int = Field(default=768, ge=768, le=768)

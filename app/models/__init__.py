@@ -1,5 +1,12 @@
 """Persistence models exposed to SQLAlchemy metadata."""
 
+from app.models.applications import (
+    ApplicationSource,
+    ApplicationStatus,
+    Candidate,
+    CandidateDocument,
+    JobApplication,
+)
 from app.models.assistant import (
     AssistantArtifact,
     AssistantArtifactStatus,
@@ -32,18 +39,23 @@ from app.models.jobs import (
 from app.models.processing_jobs import ProcessingJob, ProcessingJobStatus, ProcessingJobType
 
 __all__ = [
+    "ApplicationSource",
+    "ApplicationStatus",
     "AssistantArtifact",
     "AssistantArtifactStatus",
     "AssistantArtifactType",
     "AssistantConversation",
     "AssistantMessage",
     "AssistantMessageRole",
+    "Candidate",
+    "CandidateDocument",
     "CompanyDocument",
     "CompanyDocumentChunk",
     "CompanyDocumentStatus",
     "CompanyDocumentType",
     "EmploymentType",
     "Job",
+    "JobApplication",
     "JobDescriptionPolicyFinding",
     "JobDescriptionPolicyReview",
     "JobDescriptionSection",

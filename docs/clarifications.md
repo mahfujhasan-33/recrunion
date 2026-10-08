@@ -33,9 +33,13 @@ the approved job is sent to Bluesky. Failed attempts require an explicit retry, 
 `PUBLISHING` and `PUBLISHED` reject duplicate publication.
 
 ## Application intake
-Candidate applications are collected externally through one recruitment email. No inbound email integration in baseline scope.
+M4 provides direct recruiter batch upload of PDF CVs from the job UI. RecrUnion validates,
+hashes, stores, and records each file independently. Managed files use generated names under
+the stable job code; original filenames remain metadata only. Inbound email, Google Drive,
+and Google Forms integrations remain outside M4.
+
 Flow:
-`candidate emails CV → CV manually saved under data/applications/JOB-xxx → recruiter triggers import → RecrUnion processes PDF`
+`recruiter selects PDF CVs → batch upload → validate/hash/deduplicate → managed local storage → application records`
 
 ## Frontend
 Final choice: Jinja2 + HTML + CSS + Vanilla JavaScript.

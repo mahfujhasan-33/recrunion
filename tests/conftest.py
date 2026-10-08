@@ -9,9 +9,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401
+from app.adapters.document_storage import LocalDocumentStorage
 from app.adapters.publisher import JobPublicationContent, PublicationResult
 from app.database import Base, get_db_session
-from app.dependencies import get_embedding_adapter, get_llm_adapter, get_publisher_adapter
+from app.dependencies import (
+    get_application_document_storage,
+    get_embedding_adapter,
+    get_llm_adapter,
+    get_publisher_adapter,
+)
 from app.errors import LLMProviderError, PublisherError
 from app.main import create_app
 from app.models.jobs import EmploymentType
@@ -249,6 +255,7 @@ def fake_publisher_adapter() -> FakePublisherAdapter:
 @pytest.fixture
 def application(
     database_engine: Engine,
+    tmp_path,
     fake_llm_adapter: FakeLLMAdapter,
     fake_embedding_adapter: FakeEmbeddingAdapter,
     fake_publisher_adapter: FakePublisherAdapter,
@@ -263,6 +270,10 @@ def application(
     app.dependency_overrides[get_llm_adapter] = lambda: fake_llm_adapter
     app.dependency_overrides[get_embedding_adapter] = lambda: fake_embedding_adapter
     app.dependency_overrides[get_publisher_adapter] = lambda: fake_publisher_adapter
+    app.dependency_overrides[get_application_document_storage] = lambda: LocalDocumentStorage(
+        tmp_path / "applications",
+        10 * 1024 * 1024,
+    )
     yield app
     app.dependency_overrides.clear()
 
