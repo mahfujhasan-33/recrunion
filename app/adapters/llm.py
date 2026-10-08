@@ -1,6 +1,10 @@
 from typing import Protocol, runtime_checkable
 
 from app.schemas.assistant import AssistantTurnPlan, AssistantTurnRequest
+from app.schemas.candidate_profiles import (
+    CandidateProfileExtractionRequest,
+    CandidateProfileExtractionResult,
+)
 from app.schemas.job_descriptions import (
     JobDescriptionEnhancementRequest,
     JobDescriptionGenerationRequest,
@@ -43,5 +47,13 @@ class LLMAdapter(Protocol):
         request: PolicyAlignmentRequest,
     ) -> PolicyAlignmentResult:
         """Evaluate one JD against explicitly supplied policy evidence."""
+
+        ...
+
+    async def extract_candidate_profile(
+        self,
+        request: CandidateProfileExtractionRequest,
+    ) -> CandidateProfileExtractionResult:
+        """Extract an evidence-backed candidate profile from supplied CV chunks."""
 
         ...

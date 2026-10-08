@@ -19,6 +19,7 @@ from app.graphs.job_description_enhancement import JobDescriptionEnhancementGrap
 from app.graphs.recruiter_assistant import RecruiterAssistantGraph
 from app.repositories.applications import ApplicationRepository
 from app.repositories.assistant import AssistantRepository
+from app.repositories.candidate_processing import CandidateProcessingRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
@@ -26,6 +27,8 @@ from app.repositories.policy_knowledge import PolicyKnowledgeRepository, PolicyR
 from app.repositories.processing_jobs import ProcessingJobRepository
 from app.services.application_intake import ApplicationIntakeService
 from app.services.assistant import AssistantService
+from app.services.candidate_pdf_extraction import CandidatePDFExtractor
+from app.services.candidate_processing import CandidateProcessingService
 from app.services.company_documents import CompanyDocumentService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
@@ -64,6 +67,25 @@ def get_application_intake_service(
     )
 
 
+def build_candidate_processing_service(
+    session: Session,
+    llm_adapter: LLMAdapter,
+    embedding_adapter: EmbeddingAdapter,
+    storage: DocumentStorage | None = None,
+) -> CandidateProcessingService:
+    settings = get_settings()
+    return CandidateProcessingService(
+        JobRepository(session),
+        CandidateProcessingRepository(session),
+        storage or get_application_document_storage(),
+        CandidatePDFExtractor(),
+        llm_adapter,
+        embedding_adapter,
+        worker_max_attempts=settings.worker_max_attempts,
+        minimum_text_characters=settings.minimum_cv_text_characters,
+    )
+
+
 def get_llm_adapter() -> LLMAdapter:
     """Provide the configured LLM adapter without exposing provider details."""
 
@@ -86,6 +108,20 @@ def get_embedding_adapter() -> EmbeddingAdapter:
         model=settings.embedding_model,
         dimension=settings.embedding_dimension,
         timeout_seconds=settings.ollama_timeout_seconds,
+    )
+
+
+def get_candidate_processing_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    llm_adapter: Annotated[LLMAdapter, Depends(get_llm_adapter)],
+    embedding_adapter: Annotated[EmbeddingAdapter, Depends(get_embedding_adapter)],
+    storage: Annotated[DocumentStorage, Depends(get_application_document_storage)],
+) -> CandidateProcessingService:
+    return build_candidate_processing_service(
+        session,
+        llm_adapter,
+        embedding_adapter,
+        storage,
     )
 
 

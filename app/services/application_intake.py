@@ -29,10 +29,14 @@ from app.repositories.applications import ApplicationRepository
 from app.repositories.jobs import JobRepository
 from app.schemas.applications import (
     ApplicationBatchUploadResponse,
+    ApplicationDetailResponse,
     ApplicationResponse,
     ApplicationUploadFileResult,
     ApplicationUploadOutcome,
+    CandidateEvidenceResponse,
+    CandidateProfileResponse,
 )
+from app.schemas.candidate_profiles import CandidateProfileData
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +91,12 @@ class ApplicationIntakeService:
             for application in self._application_repository.list_for_job(job_id)
         ]
 
-    def get_application(self, job_id: UUID, application_id: UUID) -> ApplicationResponse:
+    def get_application(self, job_id: UUID, application_id: UUID) -> ApplicationDetailResponse:
         self._get_job(job_id)
         application = self._application_repository.get_for_job(job_id, application_id)
         if application is None:
             raise ApplicationNotFoundError
-        return self.to_response(application)
+        return self.to_detail_response(application)
 
     def _process_file(
         self,
@@ -231,8 +235,56 @@ class ApplicationIntakeService:
             file_size=application.document.file_size,
             source=application.source,
             status=application.status,
+            processing_status=application.document.processing_status,
+            processing_task_id=application.document.processing_task_id,
+            processing_error_code=application.document.safe_error_code,
+            processing_error_message=application.document.safe_error_message,
             imported_at=application.created_at,
         )
+
+    @classmethod
+    def to_detail_response(cls, application: JobApplication) -> ApplicationDetailResponse:
+        summary = cls.to_response(application)
+        persisted_profile = application.document.profile
+        profile: CandidateProfileResponse | None = None
+        if persisted_profile is not None:
+            structured_profile = CandidateProfileData.model_validate(
+                persisted_profile.structured_json
+            )
+            evidence_ids = cls._profile_evidence_ids(structured_profile)
+            profile = CandidateProfileResponse(
+                profile=structured_profile,
+                provider=persisted_profile.provider,
+                model=persisted_profile.model,
+                evidence=[
+                    CandidateEvidenceResponse(
+                        id=chunk.id,
+                        page_number=chunk.page_number,
+                        content=chunk.content,
+                    )
+                    for chunk in application.document.chunks
+                    if chunk.id in evidence_ids
+                ],
+                created_at=persisted_profile.created_at,
+            )
+        return ApplicationDetailResponse(
+            **summary.model_dump(),
+            candidate_profile=profile,
+        )
+
+    @staticmethod
+    def _profile_evidence_ids(profile: CandidateProfileData) -> set[UUID]:
+        items = [
+            *([profile.summary] if profile.summary is not None else []),
+            *profile.contact_details,
+            *profile.education,
+            *profile.work_history,
+            *profile.skills,
+            *profile.certifications,
+            *profile.projects,
+            *profile.technologies_tools,
+        ]
+        return {evidence_id for item in items for evidence_id in item.evidence_chunk_ids}
 
     @staticmethod
     def _count(

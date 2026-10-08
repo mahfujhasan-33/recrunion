@@ -2,7 +2,9 @@ import asyncio
 import logging
 import tempfile
 import time
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
 from app.adapters.bluesky import BlueskyPublisher
 from app.adapters.document_parser import CompanyDocumentParser
@@ -11,7 +13,11 @@ from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
 from app.config import get_settings
 from app.database import SessionFactory
-from app.dependencies import build_assistant_service, build_job_publishing_service
+from app.dependencies import (
+    build_assistant_service,
+    build_candidate_processing_service,
+    build_job_publishing_service,
+)
 from app.errors import CompanyDocumentValidationError, RecrUnionError
 from app.models.processing_jobs import ProcessingJobType
 from app.repositories.company_documents import CompanyDocumentRepository
@@ -32,14 +38,15 @@ def run_worker() -> None:
     )
     logger.info("Worker started", extra={"operation": "worker_start", "status": "running"})
 
-    while True:
-        HEARTBEAT_PATH.touch()
-        processed = process_next_task()
-        if not processed:
-            time.sleep(settings.worker_poll_seconds)
+    with asyncio.Runner() as runner:
+        while True:
+            HEARTBEAT_PATH.touch()
+            processed = process_next_task(runner)
+            if not processed:
+                time.sleep(settings.worker_poll_seconds)
 
 
-def process_next_task() -> bool:
+def process_next_task(runner: asyncio.Runner | None = None) -> bool:
     settings = get_settings()
     with SessionFactory() as session:
         task_repository = ProcessingJobRepository(session)
@@ -75,13 +82,14 @@ def process_next_task() -> bool:
                     ),
                     embedding_adapter,
                 )
-                asyncio.run(
+                _run_async(
                     assistant.process_turn(
                         task.entity_id,
                         lambda progress, message: task_repository.update_progress(
                             task, progress, message
                         ),
-                    )
+                    ),
+                    runner,
                 )
             elif task.job_type == ProcessingJobType.JOB_PUBLICATION:
                 publishing = build_job_publishing_service(
@@ -93,19 +101,45 @@ def process_next_task() -> bool:
                         timeout_seconds=settings.bluesky_timeout_seconds,
                     ),
                 )
-                asyncio.run(
+                _run_async(
                     publishing.process(
                         task.entity_id,
                         lambda progress, message: task_repository.update_progress(
                             task, progress, message
                         ),
-                    )
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.PROCESS_CANDIDATE_DOCUMENT:
+                candidate_processing = build_candidate_processing_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                    embedding_adapter,
+                    LocalDocumentStorage(
+                        settings.applications_root,
+                        settings.max_cv_size_mb * 1024 * 1024,
+                    ),
+                )
+                _run_async(
+                    candidate_processing.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
                 )
             else:
                 raise CompanyDocumentValidationError("Unsupported background job type.")
             task_repository.complete(task)
         except Exception as error:
             if isinstance(error, CompanyDocumentValidationError):
+                task.max_attempts = task.attempt_count
+            if isinstance(error, RecrUnionError) and not getattr(error, "retryable", True):
                 task.max_attempts = task.attempt_count
             code = error.code if isinstance(error, RecrUnionError) else "BACKGROUND_TASK_FAILED"
             safe_message = (
@@ -127,6 +161,15 @@ def process_next_task() -> bool:
                 },
             )
         return True
+
+
+def _run_async(
+    coroutine: Coroutine[Any, Any, object],
+    runner: asyncio.Runner | None,
+) -> object:
+    if runner is not None:
+        return runner.run(coroutine)
+    return asyncio.run(coroutine)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,18 @@ from app.schemas.assistant import (
     AssistantTurnRequest,
     RequirementDraft,
 )
+from app.schemas.candidate_profiles import (
+    CandidateCertification,
+    CandidateContactDetail,
+    CandidateEducation,
+    CandidateProfileData,
+    CandidateProfileExtractionRequest,
+    CandidateProfileExtractionResult,
+    CandidateProject,
+    CandidateSkill,
+    CandidateWorkHistory,
+    ContactDetailKind,
+)
 from app.schemas.job_descriptions import (
     GeneratedJobDescription,
     JobDescriptionEnhancementRequest,
@@ -51,6 +63,9 @@ class FakeLLMAdapter:
         self.errors: list[LLMProviderError] = []
         self.policy_errors: list[LLMProviderError] = []
         self.enhancement_call_count = 0
+        self.profile_call_count = 0
+        self.profile_errors: list[LLMProviderError] = []
+        self.profile_override: CandidateProfileData | None = None
 
     async def plan_assistant_turn(
         self,
@@ -184,6 +199,59 @@ class FakeLLMAdapter:
             provider="fake",
             model="fake-jd-model",
             metadata=LLMGenerationMetadata(finish_reason="STOP"),
+        )
+
+    async def extract_candidate_profile(
+        self,
+        request: CandidateProfileExtractionRequest,
+    ) -> CandidateProfileExtractionResult:
+        self.profile_call_count += 1
+        if self.profile_errors:
+            raise self.profile_errors.pop(0)
+        evidence_id = request.evidence[0].evidence_id
+        profile = self.profile_override or CandidateProfileData(
+            contact_details=[
+                CandidateContactDetail(
+                    kind=ContactDetailKind.EMAIL,
+                    value="synthetic@example.test",
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+            education=[
+                CandidateEducation(
+                    qualification="BSc Computer Science",
+                    institution="Synthetic University",
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+            work_history=[
+                CandidateWorkHistory(
+                    role="Software Engineer",
+                    employer="Example Systems",
+                    description="Built Python services.",
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+            skills=[CandidateSkill(name="Python", evidence_chunk_ids=[evidence_id])],
+            certifications=[
+                CandidateCertification(
+                    name="Synthetic Cloud Certification",
+                    issuer="Example Institute",
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+            projects=[
+                CandidateProject(
+                    name="Synthetic platform",
+                    technologies=["Python"],
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+        )
+        return CandidateProfileExtractionResult(
+            profile=profile,
+            provider="fake",
+            model="fake-profile-model",
         )
 
 

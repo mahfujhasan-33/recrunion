@@ -1,16 +1,27 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, status
 
-from app.dependencies import get_application_intake_service
-from app.schemas.applications import ApplicationBatchUploadResponse, ApplicationResponse
+from app.dependencies import get_application_intake_service, get_candidate_processing_service
+from app.schemas.applications import (
+    ApplicationBatchUploadResponse,
+    ApplicationDetailResponse,
+    ApplicationResponse,
+    CandidateProcessingBatchResponse,
+    CandidateProcessingStartResponse,
+)
 from app.services.application_intake import ApplicationIntakeService, IncomingCandidateDocument
+from app.services.candidate_processing import CandidateProcessingService
 
 router = APIRouter(prefix="/api/v1/jobs/{job_id}/applications", tags=["applications"])
 ApplicationIntakeServiceDependency = Annotated[
     ApplicationIntakeService,
     Depends(get_application_intake_service),
+]
+CandidateProcessingServiceDependency = Annotated[
+    CandidateProcessingService,
+    Depends(get_candidate_processing_service),
 ]
 
 
@@ -39,10 +50,35 @@ def list_applications(
     return service.list_applications(job_id)
 
 
-@router.get("/{application_id}", response_model=ApplicationResponse)
+@router.post(
+    "/process-pending",
+    response_model=CandidateProcessingBatchResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def process_pending_applications(
+    job_id: UUID,
+    service: CandidateProcessingServiceDependency,
+) -> CandidateProcessingBatchResponse:
+    return service.queue_pending(job_id)
+
+
+@router.post(
+    "/{application_id}/process",
+    response_model=CandidateProcessingStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def process_application(
+    job_id: UUID,
+    application_id: UUID,
+    service: CandidateProcessingServiceDependency,
+) -> CandidateProcessingStartResponse:
+    return service.queue(job_id, application_id)
+
+
+@router.get("/{application_id}", response_model=ApplicationDetailResponse)
 def get_application(
     job_id: UUID,
     application_id: UUID,
     service: ApplicationIntakeServiceDependency,
-) -> ApplicationResponse:
+) -> ApplicationDetailResponse:
     return service.get_application(job_id, application_id)

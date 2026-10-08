@@ -227,3 +227,35 @@ class ApplicationNotFoundError(RecrUnionError):
 
     def __init__(self) -> None:
         super().__init__("Application was not found.")
+
+
+class CandidateDocumentNotFoundError(RecrUnionError):
+    code = "CANDIDATE_DOCUMENT_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Candidate document was not found.")
+
+
+class CandidateProcessingStateError(RecrUnionError):
+    code = "CANDIDATE_PROCESSING_STATE_INVALID"
+    status_code = 409
+    retryable = False
+
+
+class CandidateDocumentValidationError(RecrUnionError):
+    code = "CANDIDATE_DOCUMENT_INVALID"
+    status_code = 422
+    retryable = False
+
+
+class CandidateProfileValidationError(RecrUnionError):
+    code = "CANDIDATE_PROFILE_INVALID"
+    status_code = 502
+    retryable = False
+
+
+class CandidateProcessingError(RecrUnionError):
+    code = "CANDIDATE_PROCESSING_FAILED"
+    status_code = 500
+    retryable = True

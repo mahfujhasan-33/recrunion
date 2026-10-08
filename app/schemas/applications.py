@@ -2,9 +2,14 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.models.applications import ApplicationSource, ApplicationStatus
+from app.models.applications import (
+    ApplicationSource,
+    ApplicationStatus,
+    CandidateDocumentProcessingStatus,
+)
+from app.schemas.candidate_profiles import CandidateProfileData
 
 
 class ApplicationResponse(BaseModel):
@@ -16,7 +21,29 @@ class ApplicationResponse(BaseModel):
     file_size: int
     source: ApplicationSource
     status: ApplicationStatus
+    processing_status: CandidateDocumentProcessingStatus
+    processing_task_id: UUID | None
+    processing_error_code: str | None
+    processing_error_message: str | None
     imported_at: datetime
+
+
+class CandidateEvidenceResponse(BaseModel):
+    id: UUID
+    page_number: int
+    content: str
+
+
+class CandidateProfileResponse(BaseModel):
+    profile: CandidateProfileData
+    provider: str
+    model: str
+    evidence: list[CandidateEvidenceResponse]
+    created_at: datetime
+
+
+class ApplicationDetailResponse(ApplicationResponse):
+    candidate_profile: CandidateProfileResponse | None = None
 
 
 class ApplicationUploadOutcome(StrEnum):
@@ -40,3 +67,15 @@ class ApplicationBatchUploadResponse(BaseModel):
     invalid: int
     failed: int
     files: list[ApplicationUploadFileResult]
+
+
+class CandidateProcessingStartResponse(BaseModel):
+    application_id: UUID
+    document_id: UUID
+    processing_status: CandidateDocumentProcessingStatus
+    task_id: UUID
+
+
+class CandidateProcessingBatchResponse(BaseModel):
+    queued: int = Field(ge=0)
+    tasks: list[CandidateProcessingStartResponse]

@@ -46,12 +46,22 @@
         <p class="eyebrow">Recruiter intake</p>
         <h2>Imported applications</h2>
       </div>
-      <span id="application-count" class="status-badge">{{ applications | length }}</span>
+      <div class="actions">
+        <button id="process-pending-applications" class="button secondary compact" type="button">Process pending CVs</button>
+        <span id="application-count" class="status-badge">{{ applications | length }}</span>
+      </div>
+    </div>
+    <div id="candidate-processing-progress" class="assistant-progress" hidden>
+      <div class="progress-copy">
+        <span id="candidate-progress-message">Waiting to process candidate CV</span>
+        <strong id="candidate-progress-percentage">0%</strong>
+      </div>
+      <progress id="candidate-progress-bar" max="100" value="0"></progress>
     </div>
     <div class="table-shell">
       <table>
         <thead>
-          <tr><th>Reference</th><th>Candidate</th><th>CV filename</th><th>Size</th><th>Source</th><th>Status</th><th>Imported</th></tr>
+          <tr><th>Reference</th><th>Candidate</th><th>CV filename</th><th>Size</th><th>Source</th><th>Intake</th><th>Processing</th><th>Imported</th><th>Actions</th></tr>
         </thead>
         <tbody id="applications-table-body">
           {% for application in applications %}
@@ -62,15 +72,37 @@
               <td>{{ (application.file_size / 1024) | round(1) }} KiB</td>
               <td>{{ application.source.value | replace('_', ' ') | title }}</td>
               <td><span class="status-badge">{{ application.status.value }}</span></td>
+              <td><span class="status-badge{% if application.processing_status.value in ['FAILED', 'NEEDS_REVIEW'] %} warning{% endif %}">{{ application.processing_status.value | replace('_', ' ') }}</span></td>
               <td>{{ application.imported_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+              <td>
+                {% if application.processing_status.value == 'READY' %}
+                  <button class="button secondary compact" type="button" data-profile-application-id="{{ application.id }}">View profile</button>
+                {% elif application.processing_status.value in ['IMPORTED', 'FAILED', 'NEEDS_REVIEW'] %}
+                  <button class="button compact" type="button" data-process-application-id="{{ application.id }}">{% if application.processing_status.value == 'IMPORTED' %}Process CV{% else %}Retry processing{% endif %}</button>
+                {% else %}
+                  <span class="hint">Task in progress</span>
+                {% endif %}
+              </td>
             </tr>
           {% else %}
-            <tr data-empty-row><td colspan="7">No applications have been imported.</td></tr>
+            <tr data-empty-row><td colspan="9">No applications have been imported.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </section>
+
+  <section id="candidate-profile-panel" class="detail-card candidate-profile" hidden>
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Processed candidate evidence</p>
+        <h2 id="candidate-profile-title">Candidate profile</h2>
+      </div>
+      <button id="close-candidate-profile" class="button secondary compact" type="button">Close</button>
+    </div>
+    <p class="hint">AI-extracted profile items remain linked to page-aware CV evidence. Recruiter review is authoritative.</p>
+    <div id="candidate-profile-content"></div>
+  </section>
 {% endblock %}
 
-{% block scripts %}<script src="/static/js/applications.js?v=20261008-m4-1" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/applications.js?v=20261008-m5-1" defer></script>{% endblock %}

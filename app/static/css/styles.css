@@ -428,8 +428,17 @@ textarea {
 }
 
 .policy-review,
-.document-list {
+.document-list,
+.candidate-profile {
   margin-top: 1.25rem;
+}
+
+.profile-section {
+  margin-top: 1.5rem;
+}
+
+.profile-section h3 {
+  margin-bottom: 0.5rem;
 }
 
 .policy-finding {

@@ -4,7 +4,10 @@ from app.models.applications import (
     ApplicationSource,
     ApplicationStatus,
     Candidate,
+    CandidateCVChunk,
     CandidateDocument,
+    CandidateDocumentProcessingStatus,
+    CandidateProfile,
     JobApplication,
 )
 from app.models.assistant import (
@@ -48,7 +51,10 @@ __all__ = [
     "AssistantMessage",
     "AssistantMessageRole",
     "Candidate",
+    "CandidateCVChunk",
     "CandidateDocument",
+    "CandidateDocumentProcessingStatus",
+    "CandidateProfile",
     "CompanyDocument",
     "CompanyDocumentChunk",
     "CompanyDocumentStatus",

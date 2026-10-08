@@ -13,12 +13,18 @@ from app.errors import (
     LLMTimeoutError,
 )
 from app.prompts.assistant import build_assistant_turn_prompt
+from app.prompts.candidate_profile import build_candidate_profile_prompt
 from app.prompts.job_description import (
     build_job_description_enhancement_prompt,
     build_job_description_prompt,
     build_policy_alignment_prompt,
 )
 from app.schemas.assistant import AssistantTurnPlan, AssistantTurnRequest
+from app.schemas.candidate_profiles import (
+    CandidateProfileData,
+    CandidateProfileExtractionRequest,
+    CandidateProfileExtractionResult,
+)
 from app.schemas.job_descriptions import (
     GeneratedJobDescription,
     JobDescriptionEnhancementRequest,
@@ -200,6 +206,51 @@ class GeminiLLMAdapter:
             )
             raise translated_error from None
         return self._parse_policy_response(response)
+
+    async def extract_candidate_profile(
+        self,
+        request: CandidateProfileExtractionRequest,
+    ) -> CandidateProfileExtractionResult:
+        if not self._api_key:
+            raise LLMConfigurationError("AI generation is not configured.")
+        try:
+            structured_model = self._build_model(temperature=0.2).with_structured_output(
+                CandidateProfileData,
+                method="function_calling",
+                include_raw=True,
+            )
+            response = await structured_model.ainvoke(build_candidate_profile_prompt(request))
+        except Exception as error:
+            translated_error = self._translate_provider_error(error)
+            logger.warning(
+                "Gemini candidate-profile extraction failed",
+                extra={
+                    "provider": "gemini",
+                    "model": self._model_name,
+                    "error_code": translated_error.code,
+                },
+            )
+            raise translated_error from None
+        if not isinstance(response, Mapping):
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        parsed = response.get("parsed")
+        if response.get("parsing_error") is not None or parsed is None:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.")
+        try:
+            profile = (
+                parsed
+                if isinstance(parsed, CandidateProfileData)
+                else CandidateProfileData.model_validate(parsed)
+            )
+        except ValidationError:
+            raise LLMInvalidResponseError("The AI provider returned an invalid response.") from None
+        raw = response.get("raw")
+        response_metadata = getattr(raw, "response_metadata", {}) or {}
+        return CandidateProfileExtractionResult(
+            profile=profile,
+            provider="gemini",
+            model=str(response_metadata.get("model_name") or self._model_name),
+        )
 
     def _build_model(self, *, temperature: float = 1.0) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(

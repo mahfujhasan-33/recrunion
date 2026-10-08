@@ -41,12 +41,20 @@ and Google Forms integrations remain outside M4.
 Flow:
 `recruiter selects PDF CVs → batch upload → validate/hash/deduplicate → managed local storage → application records`
 
+## Candidate CV processing
+M5 processes imported CVs asynchronously through the existing PostgreSQL worker. Text is
+extracted page-by-page, divided into page-linked evidence chunks, structured through Gemini behind
+`LLMAdapter`, and embedded locally through the existing Ollama/Nomic `EmbeddingAdapter`. Profiles
+may contain contact details, education, work history, skills, certifications, projects, and tools,
+but every item must reference a persisted chunk and protected characteristics are excluded.
+Text-poor/scanned documents become `NEEDS_REVIEW`; OCR is deferred.
+
 ## Frontend
 Final choice: Jinja2 + HTML + CSS + Vanilla JavaScript.
 Reason: lower implementation/debugging risk than React while fully supporting required UI behavior.
 
 ## Database/vector
-PostgreSQL + pgvector. Local embeddings persisted for semantic evidence retrieval. M2 company-policy retrieval uses the locally hosted Ollama `nomic-embed-text` model with 768-dimensional vectors. Candidate/CV embedding choices remain part of the later candidate milestone. No ChromaDB.
+PostgreSQL + pgvector. Local embeddings persisted for semantic evidence retrieval. M2 company-policy retrieval and M5 candidate-CV evidence use the locally hosted Ollama `nomic-embed-text` model with 768-dimensional vectors. No ChromaDB.
 
 ## Approved scope change — persistent company knowledge base
 M2 job-description generation must retrieve only relevant evidence from reusable company hiring documents. Recruiters can upload, list, inspect, and remove PDF, DOCX, or TXT documents. Parsing, chunking, and local embedding run through the PostgreSQL-backed worker. Generated descriptions include evidence-backed policy findings (`MET`, `PARTIALLY_MET`, `NOT_MET`, or `NOT_APPLICABLE`) rather than an opaque compliance score. Human approval remains authoritative, and recruiter edits require a fresh policy check before approval.
@@ -92,5 +100,5 @@ F7–F10 remain optional and must wait until F1–F6 + F11 are working.
 - Daily account/domain/API key
 - Bluesky demo account/app password
 - SMTP account
-- candidate/CV embedding model/dimension (M2 company-policy vectors are fixed to `nomic-embed-text`, 768 dimensions)
+- candidate/CV retrieval tuning (M2 policy and M5 CV vectors use `nomic-embed-text`, 768 dimensions)
 - pgvector/PostgreSQL image tag

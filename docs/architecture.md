@@ -68,7 +68,7 @@ Human approval happens outside the graph.
 The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, publication state, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval and external publication are never executed by the graph; the recruiter must use explicit confirmation actions. Publishing intent is resolved by the assistant, then deterministic lifecycle rules and `JobPublishingService` control execution.
 
 ### F1 Screening Graph
-`load -> extract/structure -> embed/retrieve -> evaluate requirements -> validate evidence -> persist`
+`load persisted M5 profile/chunks -> retrieve relevant CV evidence -> evaluate requirements -> validate evidence -> persist`
 
 ### F11 Probe Graph
 `load candidate -> identify gaps -> prioritize -> generate probes -> validate -> persist`
@@ -85,7 +85,7 @@ Final scoring is deterministic Python. LLMs may assist with structured evidence 
 ## Vector search
 - local Ollama `nomic-embed-text` embeddings for M2 company-policy chunks and queries
 - M2 policy vectors are 768-dimensional and stored in PostgreSQL + pgvector
-- candidate/CV vectors remain deferred to the candidate embedding milestone
+- M5 candidate/CV evidence vectors use the same model and 768-dimensional pgvector storage
 - PostgreSQL + pgvector cosine similarity
 - vector retrieval supplies evidence; it is not the sole decision mechanism
 
@@ -100,8 +100,16 @@ and hashes each file, applies job-scoped duplicate detection, stores it through 
 `DocumentStorage` boundary, and persists `Candidate`, `JobApplication`, and `CandidateDocument`
 records. `LocalDocumentStorage` writes generated filenames beneath
 `/data/applications/<job-code>/`; client filenames never determine physical paths. M4 is
-synchronous because it performs only bounded validation, hashing, and local storage. CV parsing,
-embeddings, screening, ranking, and external Drive/Form/email intake are deferred.
+synchronous because it performs only bounded validation, hashing, and local storage. External
+Drive/Form/email intake remains deferred.
+
+## Candidate evidence processing
+M5 queues each imported candidate document through the existing worker. `CandidateProcessingService`
+opens the managed PDF through `DocumentStorage`, extracts page-aware text, persists bounded evidence
+chunks, asks Gemini through `LLMAdapter` for a Pydantic-validated profile, validates every profile
+evidence reference, embeds chunks through Ollama/Nomic, and stores 768-dimensional vectors in
+PostgreSQL. `NEEDS_REVIEW` safely represents scanned/text-poor documents without adding OCR.
+Screening, matching, ranking, and scoring remain later milestones.
 
 ## Background processing
 `processing_jobs` statuses:
@@ -110,7 +118,7 @@ embeddings, screening, ranking, and external Drive/Form/email intake are deferre
 - COMPLETED
 - FAILED
 
-Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
+Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`; M5 adds `PROCESS_CANDIDATE_DOCUMENT`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
 
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
@@ -124,7 +132,8 @@ faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains
 - JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
 - JobDescriptionGraph --`generate/evaluate JD`--> Gemini
 - JobPublishingService --`JobPublicationContent`--> PublisherAdapter --> BlueskyPublisher --> Bluesky
-- ScreeningService --`embed/search evidence`--> SentenceTransformer + pgvector
+- CandidateProcessingService --`embed CV evidence`--> Ollama/Nomic + pgvector
+- ScreeningService --`retrieve persisted CV evidence`--> pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
 - InterviewService --`create/join room`--> Daily
 - TranscriptionService --`transcribe audio`--> faster-whisper

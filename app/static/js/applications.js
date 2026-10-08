@@ -6,6 +6,15 @@ const summary = document.querySelector("#application-upload-summary");
 const resultList = document.querySelector("#application-upload-results");
 const tableBody = document.querySelector("#applications-table-body");
 const applicationCount = document.querySelector("#application-count");
+const processPendingButton = document.querySelector("#process-pending-applications");
+const processingProgress = document.querySelector("#candidate-processing-progress");
+const progressMessage = document.querySelector("#candidate-progress-message");
+const progressPercentage = document.querySelector("#candidate-progress-percentage");
+const progressBar = document.querySelector("#candidate-progress-bar");
+const profilePanel = document.querySelector("#candidate-profile-panel");
+const profileTitle = document.querySelector("#candidate-profile-title");
+const profileContent = document.querySelector("#candidate-profile-content");
+const closeProfileButton = document.querySelector("#close-candidate-profile");
 
 function showFeedback(message) {
   feedback.textContent = message;
@@ -45,7 +54,7 @@ function renderApplications(applications) {
   if (!applications.length) {
     const row = document.createElement("tr");
     const cell = addCell(row, "No applications have been imported.");
-    cell.colSpan = 7;
+    cell.colSpan = 9;
     tableBody.append(row);
     return;
   }
@@ -56,20 +65,147 @@ function renderApplications(applications) {
     addCell(row, application.original_filename);
     addCell(row, formatBytes(application.file_size));
     addCell(row, application.source.replaceAll("_", " "));
-    const statusCell = addCell(row, "");
-    const badge = document.createElement("span");
-    badge.className = "status-badge";
-    badge.textContent = application.status;
-    statusCell.append(badge);
+    addStatusCell(row, application.status);
+    addStatusCell(row, application.processing_status);
     addCell(row, new Date(application.imported_at).toLocaleString());
+    const actions = addCell(row, "");
+    if (application.processing_status === "READY") {
+      actions.append(actionButton("View profile", "profileApplicationId", application.id, true));
+    } else if (["IMPORTED", "FAILED", "NEEDS_REVIEW"].includes(application.processing_status)) {
+      const label = application.processing_status === "IMPORTED" ? "Process CV" : "Retry processing";
+      actions.append(actionButton(label, "processApplicationId", application.id));
+    } else {
+      const waiting = document.createElement("span");
+      waiting.className = "hint";
+      waiting.textContent = "Task in progress";
+      actions.append(waiting);
+    }
     tableBody.append(row);
   });
 }
 
+function addStatusCell(row, status) {
+  const cell = addCell(row, "");
+  const badge = document.createElement("span");
+  badge.className = "status-badge";
+  if (["FAILED", "NEEDS_REVIEW"].includes(status)) badge.classList.add("warning");
+  badge.textContent = status.replaceAll("_", " ");
+  cell.append(badge);
+}
+
+function actionButton(label, dataName, id, secondary = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `button compact${secondary ? " secondary" : ""}`;
+  button.textContent = label;
+  button.dataset[dataName] = id;
+  return button;
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.message || "The request could not be completed.");
+  return body;
+}
+
 async function refreshApplications() {
-  const response = await fetch(`/api/v1/jobs/${uploadForm.dataset.jobId}/applications`);
-  if (!response.ok) return;
-  renderApplications(await response.json());
+  renderApplications(await fetchJson(`/api/v1/jobs/${uploadForm.dataset.jobId}/applications`));
+}
+
+function updateProgress(task) {
+  processingProgress.hidden = false;
+  progressMessage.textContent = task.progress_message;
+  progressPercentage.textContent = `${task.progress}%`;
+  progressBar.value = task.progress;
+}
+
+async function pollTask(taskId) {
+  while (true) {
+    const task = await fetchJson(`/api/v1/tasks/${taskId}`);
+    updateProgress(task);
+    if (["COMPLETED", "FAILED"].includes(task.status)) return task;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+}
+
+async function startProcessing(applicationId, button) {
+  button.disabled = true;
+  feedback.hidden = true;
+  try {
+    const started = await fetchJson(
+      `/api/v1/jobs/${uploadForm.dataset.jobId}/applications/${applicationId}/process`,
+      { method: "POST" },
+    );
+    await refreshApplications();
+    const task = await pollTask(started.task_id);
+    await refreshApplications();
+    if (task.status === "FAILED") throw new Error(task.error_message_safe || "CV processing failed.");
+  } catch (error) {
+    showFeedback(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function profileItemText(item) {
+  return Object.entries(item)
+    .filter(([key, value]) => key !== "evidence_chunk_ids" && value !== null && value !== "")
+    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${Array.isArray(value) ? value.join(", ") : value}`)
+    .join(" · ");
+}
+
+function appendProfileSection(title, items, evidenceById) {
+  if (!items.length) return;
+  const section = document.createElement("section");
+  section.className = "profile-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  section.append(heading);
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "policy-finding";
+    const value = document.createElement("p");
+    value.textContent = profileItemText(item);
+    card.append(value);
+    item.evidence_chunk_ids.forEach((id) => {
+      const evidence = evidenceById.get(id);
+      if (!evidence) return;
+      const quote = document.createElement("blockquote");
+      quote.textContent = `Page ${evidence.page_number}: ${evidence.content}`;
+      card.append(quote);
+    });
+    section.append(card);
+  });
+  profileContent.append(section);
+}
+
+async function showProfile(applicationId) {
+  feedback.hidden = true;
+  try {
+    const application = await fetchJson(
+      `/api/v1/jobs/${uploadForm.dataset.jobId}/applications/${applicationId}`,
+    );
+    if (!application.candidate_profile) throw new Error("The candidate profile is not ready.");
+    profileContent.replaceChildren();
+    profileTitle.textContent = application.candidate_display_reference;
+    const profile = application.candidate_profile.profile;
+    const evidenceById = new Map(
+      application.candidate_profile.evidence.map((item) => [item.id, item]),
+    );
+    appendProfileSection("Summary", profile.summary ? [profile.summary] : [], evidenceById);
+    appendProfileSection("Contact details", profile.contact_details, evidenceById);
+    appendProfileSection("Education", profile.education, evidenceById);
+    appendProfileSection("Work history", profile.work_history, evidenceById);
+    appendProfileSection("Skills", profile.skills, evidenceById);
+    appendProfileSection("Certifications", profile.certifications, evidenceById);
+    appendProfileSection("Projects", profile.projects, evidenceById);
+    appendProfileSection("Technologies and tools", profile.technologies_tools, evidenceById);
+    profilePanel.hidden = false;
+    profilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    showFeedback(error.message);
+  }
 }
 
 function renderSummary(body) {
@@ -108,4 +244,40 @@ uploadForm?.addEventListener("submit", async (event) => {
   } finally {
     button.disabled = false;
   }
+});
+
+tableBody?.addEventListener("click", (event) => {
+  const processButton = event.target.closest("[data-process-application-id]");
+  if (processButton) {
+    startProcessing(processButton.dataset.processApplicationId, processButton);
+    return;
+  }
+  const profileButton = event.target.closest("[data-profile-application-id]");
+  if (profileButton) showProfile(profileButton.dataset.profileApplicationId);
+});
+
+processPendingButton?.addEventListener("click", async () => {
+  processPendingButton.disabled = true;
+  feedback.hidden = true;
+  try {
+    const batch = await fetchJson(
+      `/api/v1/jobs/${uploadForm.dataset.jobId}/applications/process-pending`,
+      { method: "POST" },
+    );
+    if (!batch.queued) {
+      showFeedback("There are no newly imported CVs waiting for processing.");
+      return;
+    }
+    await refreshApplications();
+    await Promise.all(batch.tasks.map((task) => pollTask(task.task_id)));
+    await refreshApplications();
+  } catch (error) {
+    showFeedback(error.message);
+  } finally {
+    processPendingButton.disabled = false;
+  }
+});
+
+closeProfileButton?.addEventListener("click", () => {
+  profilePanel.hidden = true;
 });

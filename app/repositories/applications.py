@@ -56,7 +56,8 @@ class ApplicationRepository:
             )
             .options(
                 selectinload(JobApplication.candidate),
-                selectinload(JobApplication.document),
+                selectinload(JobApplication.document).selectinload(CandidateDocument.profile),
+                selectinload(JobApplication.document).selectinload(CandidateDocument.chunks),
             )
         )
         return self._session.scalar(statement)
