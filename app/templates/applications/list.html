@@ -109,10 +109,10 @@
   <section class="detail-card" aria-labelledby="screening-ranking-title">
     <div class="card-heading">
       <div>
-        <p class="eyebrow">F1 evidence-based ordering</p>
+        <p class="eyebrow">Evidence-based Match Rank</p>
         <h2 id="screening-ranking-title">Candidate screening and ranking</h2>
       </div>
-      <span class="hint">Required outcomes are ordered before preferred outcomes. No F2 score is shown.</span>
+      <span class="hint">Match Rank is the deterministic M6 ordering. It is separate from Suitability Score.</span>
     </div>
     <div id="screening-progress" class="assistant-progress" hidden>
       <div class="progress-copy">
@@ -124,7 +124,7 @@
     <div class="table-shell">
       <table>
         <thead>
-          <tr><th>Rank</th><th>Candidate</th><th>Required</th><th>Preferred</th><th>Status</th><th>Explanation</th><th>Action</th></tr>
+          <tr><th>Match Rank</th><th>Candidate</th><th>Required</th><th>Preferred</th><th>Status</th><th>Explanation</th><th>Action</th></tr>
         </thead>
         <tbody id="screening-ranking-body">
           <tr><td colspan="7">No current candidate screenings are available.</td></tr>
@@ -144,9 +144,75 @@
     <p id="candidate-ranking-explanation" class="hint"></p>
     <div id="candidate-screening-content"></div>
   </section>
+
+  <section class="detail-card" aria-labelledby="scoring-config-title">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">F2 deterministic scoring</p>
+        <h2 id="scoring-config-title">Suitability Scoring configuration</h2>
+      </div>
+      <span id="scoring-config-version" class="status-badge">Version —</span>
+    </div>
+    <p class="hint">Enter relative dimension weights. Only dimensions applicable to this job are normalized into effective weights; values must be greater than zero.</p>
+    <form id="scoring-config-form" class="form-card scoring-config-grid" data-job-id="{{ job.id }}">
+      <label>Technical Skills
+        <input name="technical_skills_weight" type="number" min="0.0001" step="0.0001" required>
+        <span class="hint" data-effective-weight="TECHNICAL_SKILLS">Effective: —</span>
+      </label>
+      <label>Relevant Experience
+        <input name="relevant_experience_weight" type="number" min="0.0001" step="0.0001" required>
+        <span class="hint" data-effective-weight="RELEVANT_EXPERIENCE">Effective: —</span>
+      </label>
+      <label>Academic / Professional Qualifications
+        <input name="qualifications_weight" type="number" min="0.0001" step="0.0001" required>
+        <span class="hint" data-effective-weight="ACADEMIC_PROFESSIONAL_QUALIFICATIONS">Effective: —</span>
+      </label>
+      <label>Role-Specific Criteria
+        <input name="role_specific_criteria_weight" type="number" min="0.0001" step="0.0001" required>
+        <span class="hint" data-effective-weight="ROLE_SPECIFIC_CRITERIA">Effective: —</span>
+      </label>
+      <div class="actions">
+        <button class="button secondary" type="submit">Save weights</button>
+        <button id="score-screened-applications" class="button" type="button">Score eligible candidates</button>
+      </div>
+      <p id="scoring-feedback" class="form-error" role="status" hidden></p>
+    </form>
+  </section>
+
+  <section class="detail-card" aria-labelledby="candidate-scores-title">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Objective candidate suitability</p>
+        <h2 id="candidate-scores-title">Candidate Suitability Scores</h2>
+      </div>
+      <span class="hint">The score uses validated M6 outcomes only; it is decision support, not a hiring decision.</span>
+    </div>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr><th>Candidate</th><th>Match Rank</th><th>Suitability Score</th><th>Required Gaps</th><th>Evidence Coverage</th><th>State</th><th>Action</th></tr>
+        </thead>
+        <tbody id="candidate-scores-body">
+          <tr><td colspan="7">No candidate scores are available.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="candidate-score-panel" class="detail-card candidate-profile" hidden>
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Traceable deterministic breakdown</p>
+        <h2 id="candidate-score-title">Candidate Suitability Score</h2>
+      </div>
+      <button id="close-candidate-score" class="button secondary compact" type="button">Close</button>
+    </div>
+    <div id="candidate-score-content"></div>
+  </section>
 {% endblock %}
 
 {% block scripts %}
   <script src="/static/js/applications.js?v=20261008-m6-1" defer></script>
   <script src="/static/js/screening.js?v=20261008-m6-2" defer></script>
+  <script src="/static/js/scoring.js?v=20261009-m7-1" defer></script>
 {% endblock %}

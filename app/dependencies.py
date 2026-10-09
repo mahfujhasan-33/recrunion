@@ -21,6 +21,7 @@ from app.graphs.recruiter_assistant import RecruiterAssistantGraph
 from app.repositories.applications import ApplicationRepository
 from app.repositories.assistant import AssistantRepository
 from app.repositories.candidate_processing import CandidateProcessingRepository
+from app.repositories.candidate_scoring import CandidateScoringRepository
 from app.repositories.candidate_screening import CandidateScreeningRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.job_publications import JobPublicationRepository
@@ -31,6 +32,7 @@ from app.services.application_intake import ApplicationIntakeService
 from app.services.assistant import AssistantService
 from app.services.candidate_pdf_extraction import CandidatePDFExtractor
 from app.services.candidate_processing import CandidateProcessingService
+from app.services.candidate_scoring import CandidateScoringService
 from app.services.candidate_screening import CandidateScreeningService
 from app.services.company_documents import CompanyDocumentService
 from app.services.job_descriptions import JobDescriptionService
@@ -158,6 +160,18 @@ def get_candidate_screening_service(
     embedding_adapter: Annotated[EmbeddingAdapter, Depends(get_embedding_adapter)],
 ) -> CandidateScreeningService:
     return build_candidate_screening_service(session, llm_adapter, embedding_adapter)
+
+
+def get_candidate_scoring_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CandidateScoringService:
+    """Provide deterministic F2 scoring without provider dependencies."""
+
+    return CandidateScoringService(
+        JobRepository(session),
+        CandidateScreeningRepository(session),
+        CandidateScoringRepository(session),
+    )
 
 
 def get_publisher_adapter() -> PublisherAdapter:

@@ -291,3 +291,26 @@ class CandidateScreeningError(RecrUnionError):
     code = "CANDIDATE_SCREENING_FAILED"
     status_code = 500
     retryable = True
+
+
+class CandidateScoringNotFoundError(RecrUnionError):
+    code = "CANDIDATE_SCORE_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Candidate suitability score was not found.")
+
+
+class CandidateScoringStateError(RecrUnionError):
+    code = "CANDIDATE_SCORING_STATE_INVALID"
+    status_code = 409
+
+
+class ScoringConfigurationError(RecrUnionError):
+    code = "SCORING_CONFIGURATION_INVALID"
+    status_code = 422
+
+
+class CandidateScoringError(RecrUnionError):
+    code = "CANDIDATE_SCORING_FAILED"
+    status_code = 500

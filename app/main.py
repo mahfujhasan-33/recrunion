@@ -20,6 +20,7 @@ from app.routers import (
     job_publications_api,
     jobs_api,
     jobs_web,
+    scoring_api,
     screening_api,
     tasks_api,
 )
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     application.include_router(applications_web.router)
     application.include_router(applications_api.router)
     application.include_router(screening_api.router)
+    application.include_router(scoring_api.router)
     application.include_router(assistant_web.router)
     application.include_router(assistant_api.router)
     application.include_router(health.router)

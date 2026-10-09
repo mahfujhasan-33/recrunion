@@ -80,7 +80,12 @@ The assistant is a bounded orchestration layer, not a second implementation of j
 `load F1/F2/F5 -> merge evidence -> strengths/weaknesses/gaps -> generate -> claim evidence validation -> persist`
 
 ## F2
-Final scoring is deterministic Python. LLMs may assist with structured evidence interpretation and justifications, not arbitrary final numeric scores.
+Final scoring is deterministic Python over validated persisted F1 outcomes. `F2_V1` maps
+`MET/PARTIALLY_MET/UNMET` to `100/50/0`, gives required requirements importance `1.0` and preferred
+requirements `0.5`, uses positive recruiter-configured relative dimension weights, renormalizes
+across applicable dimensions, and persists Decimal results rounded half-up to two places. Match
+Rank remains the separate F1 ordinal signal. No LLM, embedding, retrieval, or worker operation runs
+during F2 calculation.
 
 ## Vector search
 - local Ollama `nomic-embed-text` embeddings for M2 company-policy chunks and queries

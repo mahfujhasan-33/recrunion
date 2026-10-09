@@ -367,6 +367,24 @@ a {
   gap: 1.25rem;
 }
 
+.scoring-config-grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  padding: 1.25rem;
+  margin-top: 1rem;
+  background: #f7f9fc;
+  box-shadow: none;
+}
+
+.scoring-config-grid .actions,
+.scoring-config-grid .form-error {
+  grid-column: 1 / -1;
+}
+
+.form-error.success {
+  color: #0d513f;
+  background: #dcefe9;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));

@@ -40,6 +40,7 @@ from app.models.jobs import (
     RequirementType,
 )
 from app.models.processing_jobs import ProcessingJob, ProcessingJobStatus, ProcessingJobType
+from app.models.scoring import CandidateScore, EvidenceCoverage, JobScoringConfig, ScoringDimension
 from app.models.screening import (
     CandidateRequirementEvidence,
     CandidateRequirementMatch,
@@ -64,6 +65,7 @@ __all__ = [
     "CandidateProfile",
     "CandidateRequirementEvidence",
     "CandidateRequirementMatch",
+    "CandidateScore",
     "CandidateScreening",
     "CandidateScreeningStatus",
     "CompanyDocument",
@@ -71,6 +73,7 @@ __all__ = [
     "CompanyDocumentStatus",
     "CompanyDocumentType",
     "EmploymentType",
+    "EvidenceCoverage",
     "Job",
     "JobApplication",
     "JobDescriptionPolicyFinding",
@@ -78,6 +81,7 @@ __all__ = [
     "JobDescriptionSection",
     "JobPublication",
     "JobRequirement",
+    "JobScoringConfig",
     "JobStatus",
     "PolicyAlignmentStatus",
     "ProcessingJob",
@@ -87,4 +91,5 @@ __all__ = [
     "RequirementCategory",
     "RequirementMatchStatus",
     "RequirementType",
+    "ScoringDimension",
 ]
