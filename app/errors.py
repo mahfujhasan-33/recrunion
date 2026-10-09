@@ -259,3 +259,35 @@ class CandidateProcessingError(RecrUnionError):
     code = "CANDIDATE_PROCESSING_FAILED"
     status_code = 500
     retryable = True
+
+
+class CandidateScreeningNotFoundError(RecrUnionError):
+    code = "CANDIDATE_SCREENING_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Candidate screening was not found.")
+
+
+class CandidateScreeningStateError(RecrUnionError):
+    code = "CANDIDATE_SCREENING_STATE_INVALID"
+    status_code = 409
+    retryable = False
+
+
+class CandidateScreeningValidationError(RecrUnionError):
+    code = "CANDIDATE_SCREENING_INVALID"
+    status_code = 422
+    retryable = False
+
+
+class CandidateScreeningEvidenceError(RecrUnionError):
+    code = "CANDIDATE_SCREENING_EVIDENCE_INVALID"
+    status_code = 502
+    retryable = False
+
+
+class CandidateScreeningError(RecrUnionError):
+    code = "CANDIDATE_SCREENING_FAILED"
+    status_code = 500
+    retryable = True

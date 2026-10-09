@@ -13,6 +13,7 @@ class ProcessingJobType(StrEnum):
     ASSISTANT_TURN = "ASSISTANT_TURN"
     JOB_PUBLICATION = "JOB_PUBLICATION"
     PROCESS_CANDIDATE_DOCUMENT = "PROCESS_CANDIDATE_DOCUMENT"
+    SCREEN_CANDIDATE_APPLICATION = "SCREEN_CANDIDATE_APPLICATION"
 
 
 class ProcessingJobStatus(StrEnum):
@@ -36,6 +37,7 @@ class ProcessingJob(Base):
             name="processing_job_type",
             native_enum=False,
             create_constraint=True,
+            length=64,
         ),
         nullable=False,
     )

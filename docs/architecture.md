@@ -111,6 +111,17 @@ evidence reference, embeds chunks through Ollama/Nomic, and stores 768-dimension
 PostgreSQL. `NEEDS_REVIEW` safely represents scanned/text-poor documents without adding OCR.
 Screening, matching, ranking, and scoring remain later milestones.
 
+## F1 candidate screening
+M6 queues one `SCREEN_CANDIDATE_APPLICATION` worker task per READY application. The Candidate
+Screening Graph loads the persisted M5 profile/chunks, embeds each job requirement as a Nomic query,
+retrieves only chunks owned by that application, evaluates all requirements in one structured
+Gemini call, validates every requirement/evidence ID deterministically, builds outcome counts, and
+persists the screening. Original PDFs are not reopened and candidate chunks are not re-embedded.
+
+Current completed results are ranked in application code by fewer required `UNMET`, fewer required
+`PARTIALLY_MET`, more required `MET`, then preferred outcomes and stable application ID. Stale,
+queued, processing, and failed screenings are not ranked. F2 weighted scoring remains separate.
+
 ## Background processing
 `processing_jobs` statuses:
 - QUEUED
@@ -118,7 +129,7 @@ Screening, matching, ranking, and scoring remain later milestones.
 - COMPLETED
 - FAILED
 
-Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`; M5 adds `PROCESS_CANDIDATE_DOCUMENT`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
+Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`; M5 adds `PROCESS_CANDIDATE_DOCUMENT`; M6 adds `SCREEN_CANDIDATE_APPLICATION`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
 
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 

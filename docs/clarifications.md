@@ -49,6 +49,15 @@ may contain contact details, education, work history, skills, certifications, pr
 but every item must reference a persisted chunk and protected characteristics are excluded.
 Text-poor/scanned documents become `NEEDS_REVIEW`; OCR is deferred.
 
+## F1 candidate screening and ranking
+M6 consumes only persisted M5 profiles and candidate CV chunks. Each current job requirement is
+matched against application-scoped pgvector evidence, evaluated through Gemini behind
+`LLMAdapter`, and deterministically validated before persistence. Results use `MET`,
+`PARTIALLY_MET`, and `UNMET`; `UNMET` means the submitted CV does not sufficiently demonstrate the
+requirement, not that the candidate lacks the capability. Ranking is a reproducible ordinal F1
+ordering based on required outcomes first and preferred outcomes second. It is not the configurable
+weighted F2 score. Protected-characteristic requirements fail safely and never participate.
+
 ## Frontend
 Final choice: Jinja2 + HTML + CSS + Vanilla JavaScript.
 Reason: lower implementation/debugging risk than React while fully supporting required UI behavior.

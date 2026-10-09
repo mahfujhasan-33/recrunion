@@ -16,6 +16,7 @@ from app.database import SessionFactory
 from app.dependencies import (
     build_assistant_service,
     build_candidate_processing_service,
+    build_candidate_screening_service,
     build_job_publishing_service,
 )
 from app.errors import CompanyDocumentValidationError, RecrUnionError
@@ -126,6 +127,25 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
                 )
                 _run_async(
                     candidate_processing.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.SCREEN_CANDIDATE_APPLICATION:
+                screening = build_candidate_screening_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                    embedding_adapter,
+                )
+                _run_async(
+                    screening.process(
                         task.entity_id,
                         lambda progress, message: task_repository.update_progress(
                             task, progress, message

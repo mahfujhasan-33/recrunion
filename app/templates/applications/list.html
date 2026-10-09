@@ -48,6 +48,7 @@
       </div>
       <div class="actions">
         <button id="process-pending-applications" class="button secondary compact" type="button">Process pending CVs</button>
+        <button id="screen-ready-applications" class="button compact" type="button">Screen ready candidates</button>
         <span id="application-count" class="status-badge">{{ applications | length }}</span>
       </div>
     </div>
@@ -65,7 +66,7 @@
         </thead>
         <tbody id="applications-table-body">
           {% for application in applications %}
-            <tr>
+            <tr data-application-id="{{ application.id }}" data-processing-status="{{ application.processing_status.value }}">
               <td>{{ application.reference }}</td>
               <td>{{ application.candidate_display_reference }}</td>
               <td>{{ application.original_filename }}</td>
@@ -77,6 +78,7 @@
               <td>
                 {% if application.processing_status.value == 'READY' %}
                   <button class="button secondary compact" type="button" data-profile-application-id="{{ application.id }}">View profile</button>
+                  <button class="button compact" type="button" data-screen-application-id="{{ application.id }}">Screen candidate</button>
                 {% elif application.processing_status.value in ['IMPORTED', 'FAILED', 'NEEDS_REVIEW'] %}
                   <button class="button compact" type="button" data-process-application-id="{{ application.id }}">{% if application.processing_status.value == 'IMPORTED' %}Process CV{% else %}Retry processing{% endif %}</button>
                 {% else %}
@@ -103,6 +105,48 @@
     <p class="hint">AI-extracted profile items remain linked to page-aware CV evidence. Recruiter review is authoritative.</p>
     <div id="candidate-profile-content"></div>
   </section>
+
+  <section class="detail-card" aria-labelledby="screening-ranking-title">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">F1 evidence-based ordering</p>
+        <h2 id="screening-ranking-title">Candidate screening and ranking</h2>
+      </div>
+      <span class="hint">Required outcomes are ordered before preferred outcomes. No F2 score is shown.</span>
+    </div>
+    <div id="screening-progress" class="assistant-progress" hidden>
+      <div class="progress-copy">
+        <span id="screening-progress-message">Waiting to screen candidate evidence</span>
+        <strong id="screening-progress-percentage">0%</strong>
+      </div>
+      <progress id="screening-progress-bar" max="100" value="0"></progress>
+    </div>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr><th>Rank</th><th>Candidate</th><th>Required</th><th>Preferred</th><th>Status</th><th>Explanation</th><th>Action</th></tr>
+        </thead>
+        <tbody id="screening-ranking-body">
+          <tr><td colspan="7">No current candidate screenings are available.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="candidate-screening-panel" class="detail-card candidate-profile" hidden>
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Requirement-by-requirement evidence</p>
+        <h2 id="candidate-screening-title">Candidate screening</h2>
+      </div>
+      <button id="close-candidate-screening" class="button secondary compact" type="button">Close</button>
+    </div>
+    <p id="candidate-ranking-explanation" class="hint"></p>
+    <div id="candidate-screening-content"></div>
+  </section>
 {% endblock %}
 
-{% block scripts %}<script src="/static/js/applications.js?v=20261008-m5-1" defer></script>{% endblock %}
+{% block scripts %}
+  <script src="/static/js/applications.js?v=20261008-m6-1" defer></script>
+  <script src="/static/js/screening.js?v=20261008-m6-2" defer></script>
+{% endblock %}

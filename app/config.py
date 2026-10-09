@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     policy_retrieval_candidate_count: int = Field(default=20, ge=1, le=100)
     policy_retrieval_top_k: int = Field(default=8, ge=1, le=30)
     policy_retrieval_min_similarity: float = Field(default=0.3, ge=-1, le=1)
+    screening_retrieval_top_k: int = Field(default=4, ge=1, le=10)
+    screening_retrieval_min_similarity: float = Field(default=0.25, ge=-1, le=1)
     publisher_provider: Literal["bluesky"] = "bluesky"
     bluesky_identifier: str = ""
     bluesky_app_password: str = ""

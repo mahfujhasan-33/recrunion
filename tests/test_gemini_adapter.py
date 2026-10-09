@@ -8,11 +8,17 @@ from app.adapters import gemini
 from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.llm import LLMAdapter
 from app.errors import LLMConfigurationError, LLMInvalidResponseError, LLMRateLimitError
+from app.models.jobs import RequirementCategory, RequirementType
 from app.schemas.candidate_profiles import (
     CandidateProfileEvidence,
     CandidateProfileExtractionRequest,
 )
 from app.schemas.job_descriptions import JobDescriptionGenerationRequest
+from app.schemas.screening import (
+    CandidateScreeningEvaluationRequest,
+    ScreeningEvidence,
+    ScreeningRequirement,
+)
 
 
 def generation_request() -> JobDescriptionGenerationRequest:
@@ -219,3 +225,81 @@ async def test_gemini_adapter_parses_evidence_backed_candidate_profile(
     assert result.profile.skills[0].name == "Python"
     assert result.profile.skills[0].evidence_chunk_ids == [evidence_id]
     assert result.model == "candidate-test-model"
+
+
+@pytest.mark.asyncio
+async def test_gemini_adapter_parses_candidate_screening_with_function_calling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requirement_id = uuid4()
+    evidence_id = uuid4()
+
+    class ScreeningStructuredGemini:
+        async def ainvoke(self, messages: object) -> dict[str, object]:
+            assert messages
+            return {
+                "parsed": {
+                    "matches": [
+                        {
+                            "requirement_id": str(requirement_id),
+                            "status": "MET",
+                            "justification": "The supplied evidence demonstrates Python.",
+                            "evidence_chunk_ids": [str(evidence_id)],
+                        }
+                    ]
+                },
+                "raw": SimpleNamespace(response_metadata={"model_name": "screening-test"}),
+                "parsing_error": None,
+            }
+
+    class ScreeningGeminiClient(FakeGeminiClient):
+        def with_structured_output(
+            self,
+            *args: object,
+            **kwargs: object,
+        ) -> ScreeningStructuredGemini:
+            assert args
+            assert kwargs["method"] == "function_calling"
+            assert kwargs["include_raw"] is True
+            return ScreeningStructuredGemini()
+
+    monkeypatch.setattr(gemini, "ChatGoogleGenerativeAI", ScreeningGeminiClient)
+    adapter = GeminiLLMAdapter(api_key="test-key", model="test-model", timeout_seconds=10)
+    profile_evidence_id = uuid4()
+
+    result = await adapter.evaluate_candidate_screening(
+        CandidateScreeningEvaluationRequest(
+            job_title="Backend Engineer",
+            candidate_profile={
+                "skills": [
+                    {
+                        "name": "Python",
+                        "evidence_chunk_ids": [str(profile_evidence_id)],
+                    }
+                ]
+            },
+            requirements=[
+                ScreeningRequirement(
+                    requirement_id=requirement_id,
+                    category=RequirementCategory.SKILL,
+                    requirement_type=RequirementType.REQUIRED,
+                    text="Python",
+                    priority=1,
+                    evidence_chunk_ids=[evidence_id],
+                )
+            ],
+            evidence=[
+                ScreeningEvidence(
+                    evidence_id=evidence_id,
+                    document_id=uuid4(),
+                    page_number=1,
+                    content="Built Python services.",
+                    similarity=0.9,
+                )
+            ],
+        )
+    )
+
+    assert result.evaluation.matches[0].status == "MET"
+    assert result.evaluation.matches[0].evidence_chunk_ids == [evidence_id]
+    assert result.model == "screening-test"

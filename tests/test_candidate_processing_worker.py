@@ -116,3 +116,54 @@ def test_worker_records_safe_candidate_processing_failure(
         assert task.status == ProcessingJobStatus.FAILED
         assert task.error_code == "CANDIDATE_PROCESSING_FAILED"
         assert task.error_message_safe == "The candidate document could not be processed."
+
+
+def test_worker_dispatches_candidate_screening_and_reports_progress(
+    database_engine: Engine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = sessionmaker(bind=database_engine, expire_on_commit=False)
+    task_id = uuid4()
+    with factory() as session:
+        session.add(
+            ProcessingJob(
+                id=task_id,
+                job_type=ProcessingJobType.SCREEN_CANDIDATE_APPLICATION,
+                entity_type="CANDIDATE_SCREENING",
+                entity_id=uuid4(),
+                max_attempts=1,
+            )
+        )
+        session.commit()
+
+    stages: list[tuple[int, str]] = []
+
+    class FakeCandidateScreeningService:
+        async def process(self, screening_id, report) -> None:
+            assert screening_id
+            report(32, "Retrieving candidate-specific evidence for each requirement")
+            report(92, "Persisting validated screening results")
+            stages.extend(
+                [
+                    (32, "Retrieving candidate-specific evidence for each requirement"),
+                    (92, "Persisting validated screening results"),
+                ]
+            )
+
+    monkeypatch.setattr(worker_main, "SessionFactory", factory)
+    monkeypatch.setattr(worker_main, "get_settings", lambda: worker_settings(tmp_path))
+    monkeypatch.setattr(
+        worker_main,
+        "build_candidate_screening_service",
+        lambda *args, **kwargs: FakeCandidateScreeningService(),
+    )
+
+    assert worker_main.process_next_task() is True
+
+    with Session(database_engine) as session:
+        task = session.get(ProcessingJob, task_id)
+        assert task is not None
+        assert task.status == ProcessingJobStatus.COMPLETED
+        assert task.progress == 100
+    assert stages[-1][0] == 92

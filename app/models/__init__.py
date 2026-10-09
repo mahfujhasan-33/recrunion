@@ -40,6 +40,13 @@ from app.models.jobs import (
     RequirementType,
 )
 from app.models.processing_jobs import ProcessingJob, ProcessingJobStatus, ProcessingJobType
+from app.models.screening import (
+    CandidateRequirementEvidence,
+    CandidateRequirementMatch,
+    CandidateScreening,
+    CandidateScreeningStatus,
+    RequirementMatchStatus,
+)
 
 __all__ = [
     "ApplicationSource",
@@ -55,6 +62,10 @@ __all__ = [
     "CandidateDocument",
     "CandidateDocumentProcessingStatus",
     "CandidateProfile",
+    "CandidateRequirementEvidence",
+    "CandidateRequirementMatch",
+    "CandidateScreening",
+    "CandidateScreeningStatus",
     "CompanyDocument",
     "CompanyDocumentChunk",
     "CompanyDocumentStatus",
@@ -74,5 +85,6 @@ __all__ = [
     "ProcessingJobType",
     "PublicationStatus",
     "RequirementCategory",
+    "RequirementMatchStatus",
     "RequirementType",
 ]

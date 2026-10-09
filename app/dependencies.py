@@ -14,12 +14,14 @@ from app.adapters.publisher import PublisherAdapter
 from app.config import get_settings
 from app.database import get_db_session
 from app.errors import EmbeddingProviderError, LLMConfigurationError
+from app.graphs.candidate_screening import CandidateScreeningGraph
 from app.graphs.job_description import JobDescriptionGraph
 from app.graphs.job_description_enhancement import JobDescriptionEnhancementGraph
 from app.graphs.recruiter_assistant import RecruiterAssistantGraph
 from app.repositories.applications import ApplicationRepository
 from app.repositories.assistant import AssistantRepository
 from app.repositories.candidate_processing import CandidateProcessingRepository
+from app.repositories.candidate_screening import CandidateScreeningRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
@@ -29,6 +31,7 @@ from app.services.application_intake import ApplicationIntakeService
 from app.services.assistant import AssistantService
 from app.services.candidate_pdf_extraction import CandidatePDFExtractor
 from app.services.candidate_processing import CandidateProcessingService
+from app.services.candidate_screening import CandidateScreeningService
 from app.services.company_documents import CompanyDocumentService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
@@ -123,6 +126,38 @@ def get_candidate_processing_service(
         embedding_adapter,
         storage,
     )
+
+
+def build_candidate_screening_service(
+    session: Session,
+    llm_adapter: LLMAdapter,
+    embedding_adapter: EmbeddingAdapter,
+) -> CandidateScreeningService:
+    settings = get_settings()
+    screening_repository = CandidateScreeningRepository(session)
+    graph = CandidateScreeningGraph(
+        screening_repository,
+        CandidateProcessingRepository(session),
+        llm_adapter,
+        embedding_adapter,
+        max_attempts=settings.gemini_max_retries + 1,
+        retrieval_top_k=settings.screening_retrieval_top_k,
+        retrieval_min_similarity=settings.screening_retrieval_min_similarity,
+    )
+    return CandidateScreeningService(
+        JobRepository(session),
+        screening_repository,
+        graph,
+        worker_max_attempts=settings.worker_max_attempts,
+    )
+
+
+def get_candidate_screening_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    llm_adapter: Annotated[LLMAdapter, Depends(get_llm_adapter)],
+    embedding_adapter: Annotated[EmbeddingAdapter, Depends(get_embedding_adapter)],
+) -> CandidateScreeningService:
+    return build_candidate_screening_service(session, llm_adapter, embedding_adapter)
 
 
 def get_publisher_adapter() -> PublisherAdapter:

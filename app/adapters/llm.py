@@ -12,6 +12,10 @@ from app.schemas.job_descriptions import (
     PolicyAlignmentRequest,
     PolicyAlignmentResult,
 )
+from app.schemas.screening import (
+    CandidateScreeningEvaluationRequest,
+    CandidateScreeningEvaluationResult,
+)
 
 
 @runtime_checkable
@@ -55,5 +59,13 @@ class LLMAdapter(Protocol):
         request: CandidateProfileExtractionRequest,
     ) -> CandidateProfileExtractionResult:
         """Extract an evidence-backed candidate profile from supplied CV chunks."""
+
+        ...
+
+    async def evaluate_candidate_screening(
+        self,
+        request: CandidateScreeningEvaluationRequest,
+    ) -> CandidateScreeningEvaluationResult:
+        """Evaluate job requirements against explicitly supplied candidate evidence."""
 
         ...

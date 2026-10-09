@@ -21,6 +21,7 @@ from app.dependencies import (
 from app.errors import LLMProviderError, PublisherError
 from app.main import create_app
 from app.models.jobs import EmploymentType
+from app.models.screening import RequirementMatchStatus
 from app.schemas.assistant import (
     AssistantIntent,
     AssistantTurnPlan,
@@ -52,6 +53,12 @@ from app.schemas.policy_findings import (
     GeneratedPolicyFinding,
     PolicyAlignmentEvaluation,
 )
+from app.schemas.screening import (
+    CandidateScreeningEvaluation,
+    CandidateScreeningEvaluationRequest,
+    CandidateScreeningEvaluationResult,
+    GeneratedRequirementMatch,
+)
 
 
 class FakeLLMAdapter:
@@ -66,6 +73,9 @@ class FakeLLMAdapter:
         self.profile_call_count = 0
         self.profile_errors: list[LLMProviderError] = []
         self.profile_override: CandidateProfileData | None = None
+        self.screening_call_count = 0
+        self.screening_errors: list[LLMProviderError] = []
+        self.screening_override: CandidateScreeningEvaluation | None = None
 
     async def plan_assistant_turn(
         self,
@@ -252,6 +262,38 @@ class FakeLLMAdapter:
             profile=profile,
             provider="fake",
             model="fake-profile-model",
+        )
+
+    async def evaluate_candidate_screening(
+        self,
+        request: CandidateScreeningEvaluationRequest,
+    ) -> CandidateScreeningEvaluationResult:
+        self.screening_call_count += 1
+        if self.screening_errors:
+            raise self.screening_errors.pop(0)
+        evaluation = self.screening_override or CandidateScreeningEvaluation(
+            matches=[
+                GeneratedRequirementMatch(
+                    requirement_id=requirement.requirement_id,
+                    status=(
+                        RequirementMatchStatus.MET
+                        if requirement.evidence_chunk_ids
+                        else RequirementMatchStatus.UNMET
+                    ),
+                    justification=(
+                        "The processed CV evidence demonstrates this requirement."
+                        if requirement.evidence_chunk_ids
+                        else "Sufficient supporting CV evidence was not found."
+                    ),
+                    evidence_chunk_ids=requirement.evidence_chunk_ids[:1],
+                )
+                for requirement in request.requirements
+            ]
+        )
+        return CandidateScreeningEvaluationResult(
+            evaluation=evaluation,
+            provider="fake",
+            model="fake-screening-model",
         )
 
 

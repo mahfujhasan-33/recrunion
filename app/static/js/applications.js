@@ -60,6 +60,8 @@ function renderApplications(applications) {
   }
   applications.forEach((application) => {
     const row = document.createElement("tr");
+    row.dataset.applicationId = application.id;
+    row.dataset.processingStatus = application.processing_status;
     addCell(row, application.reference);
     addCell(row, application.candidate_display_reference);
     addCell(row, application.original_filename);
@@ -71,6 +73,7 @@ function renderApplications(applications) {
     const actions = addCell(row, "");
     if (application.processing_status === "READY") {
       actions.append(actionButton("View profile", "profileApplicationId", application.id, true));
+      actions.append(actionButton("Screen candidate", "screenApplicationId", application.id));
     } else if (["IMPORTED", "FAILED", "NEEDS_REVIEW"].includes(application.processing_status)) {
       const label = application.processing_status === "IMPORTED" ? "Process CV" : "Retry processing";
       actions.append(actionButton(label, "processApplicationId", application.id));
@@ -82,6 +85,7 @@ function renderApplications(applications) {
     }
     tableBody.append(row);
   });
+  document.dispatchEvent(new CustomEvent("applications:rendered"));
 }
 
 function addStatusCell(row, status) {
