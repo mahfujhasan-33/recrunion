@@ -1,17 +1,15 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RecrUnion</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-  </head>
-  <body>
-    <main class="status-card">
-      <p class="eyebrow">Foundation milestone</p>
-      <h1>RecrUnion is running</h1>
-      <p>The application foundation is ready for incremental development.</p>
-      <a href="/health">View application health</a>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}RecrUnion{% endblock %}
+
+{% block content %}
+  <section class="status-card">
+    <p class="eyebrow">Recruitment workspace</p>
+    <h1>RecrUnion is running</h1>
+    <p>Create structured job requirements and keep every role ready for the next stage.</p>
+    <div class="actions">
+      <a class="button" href="/jobs">Manage jobs</a>
+      <a class="button secondary" href="/health">View application health</a>
+    </div>
+  </section>
+{% endblock %}

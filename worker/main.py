@@ -1,16 +1,39 @@
+import asyncio
 import logging
 import tempfile
 import time
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
+from app.adapters.blogger import BloggerPublisher
+from app.adapters.bluesky import BlueskyPublisher
+from app.adapters.document_parser import CompanyDocumentParser
+from app.adapters.document_storage import LocalDocumentStorage
+from app.adapters.gemini import GeminiLLMAdapter
+from app.adapters.google_oauth import GoogleOAuthClient, GoogleOAuthCredentials
+from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
 from app.config import get_settings
+from app.database import SessionFactory
+from app.dependencies import (
+    build_assistant_service,
+    build_candidate_processing_service,
+    build_candidate_screening_service,
+    build_email_intake_service,
+    build_job_publishing_service,
+)
+from app.errors import CompanyDocumentValidationError, RecrUnionError
+from app.models.processing_jobs import ProcessingJobType
+from app.repositories.company_documents import CompanyDocumentRepository
+from app.repositories.processing_jobs import ProcessingJobRepository
+from app.services.document_ingestion import DocumentIngestionService
 
 HEARTBEAT_PATH = Path(tempfile.gettempdir()) / "recrunion-worker-heartbeat"
 logger = logging.getLogger(__name__)
 
 
 def run_worker() -> None:
-    """Run the M0 worker heartbeat loop until the container stops."""
+    """Claim and execute PostgreSQL-backed background jobs."""
 
     settings = get_settings()
     logging.basicConfig(
@@ -19,9 +42,192 @@ def run_worker() -> None:
     )
     logger.info("Worker started", extra={"operation": "worker_start", "status": "running"})
 
-    while True:
-        HEARTBEAT_PATH.touch()
-        time.sleep(settings.worker_poll_seconds)
+    with asyncio.Runner() as runner:
+        while True:
+            HEARTBEAT_PATH.touch()
+            processed = process_next_task(runner)
+            if not processed:
+                time.sleep(settings.worker_poll_seconds)
+
+
+def process_next_task(runner: asyncio.Runner | None = None) -> bool:
+    settings = get_settings()
+    with SessionFactory() as session:
+        task_repository = ProcessingJobRepository(session)
+        if getattr(settings, "email_auto_sync_enabled", False):
+            build_email_intake_service(session).queue_due()
+        task = task_repository.claim_next()
+        if task is None:
+            return False
+        task_id = task.id
+        task_entity_id = task.entity_id
+        try:
+            embedding_adapter = OllamaEmbeddingAdapter(
+                base_url=settings.ollama_base_url,
+                model=settings.embedding_model,
+                dimension=settings.embedding_dimension,
+                timeout_seconds=settings.ollama_timeout_seconds,
+            )
+            if task.job_type == ProcessingJobType.COMPANY_DOCUMENT_INGESTION:
+                ingestion = DocumentIngestionService(
+                    CompanyDocumentRepository(session),
+                    LocalDocumentStorage(
+                        settings.company_documents_root,
+                        settings.max_company_document_size_mb * 1024 * 1024,
+                    ),
+                    CompanyDocumentParser(),
+                    embedding_adapter,
+                )
+                task_repository.update_progress(task, 10, "Extracting document text")
+                ingestion.ingest(task.entity_id)
+            elif task.job_type == ProcessingJobType.ASSISTANT_TURN:
+                assistant = build_assistant_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                    embedding_adapter,
+                )
+                _run_async(
+                    assistant.process_turn(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.JOB_PUBLICATION:
+                publishing = build_job_publishing_service(
+                    session,
+                    BlueskyPublisher(
+                        identifier=settings.bluesky_identifier,
+                        app_password=settings.bluesky_app_password,
+                        service_url=settings.bluesky_service_url,
+                        timeout_seconds=settings.bluesky_timeout_seconds,
+                    ),
+                    BloggerPublisher(
+                        blog_id=settings.blogger_blog_id,
+                        oauth=GoogleOAuthClient(
+                            GoogleOAuthCredentials(
+                                settings.blogger_client_id,
+                                settings.blogger_client_secret,
+                                settings.blogger_refresh_token,
+                            )
+                        ),
+                        api_base_url=settings.blogger_api_base_url,
+                        timeout_seconds=settings.blogger_timeout_seconds,
+                    ),
+                )
+                _run_async(
+                    publishing.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.SYNC_EMAIL_APPLICATIONS:
+                email_intake = build_email_intake_service(session)
+                _run_async(
+                    email_intake.process(
+                        task.id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.PROCESS_CANDIDATE_DOCUMENT:
+                candidate_processing = build_candidate_processing_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                    embedding_adapter,
+                    LocalDocumentStorage(
+                        settings.applications_root,
+                        settings.max_cv_size_mb * 1024 * 1024,
+                    ),
+                )
+                _run_async(
+                    candidate_processing.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.SCREEN_CANDIDATE_APPLICATION:
+                screening = build_candidate_screening_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                    embedding_adapter,
+                )
+                _run_async(
+                    screening.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            else:
+                raise CompanyDocumentValidationError("Unsupported background job type.")
+            task_repository.complete(task)
+        except Exception as error:
+            session.rollback()
+            failed_task = task_repository.get(task_id)
+            if failed_task is None:
+                logger.error(
+                    "Background task disappeared after failure",
+                    extra={"task_id": str(task_id), "entity_id": str(task_entity_id)},
+                )
+                return True
+            if isinstance(error, CompanyDocumentValidationError):
+                failed_task.max_attempts = failed_task.attempt_count
+            if isinstance(error, RecrUnionError) and not getattr(error, "retryable", True):
+                failed_task.max_attempts = failed_task.attempt_count
+            code = error.code if isinstance(error, RecrUnionError) else "BACKGROUND_TASK_FAILED"
+            safe_message = (
+                str(error)
+                if isinstance(error, RecrUnionError)
+                else "The background task could not be completed."
+            )
+            task_repository.fail_or_retry(
+                failed_task,
+                code,
+                safe_message,
+            )
+            logger.warning(
+                "Background task failed",
+                extra={
+                    "task_id": str(task_id),
+                    "entity_id": str(task_entity_id),
+                    "error_code": code,
+                },
+            )
+        return True
+
+
+def _run_async(
+    coroutine: Coroutine[Any, Any, object],
+    runner: asyncio.Runner | None,
+) -> object:
+    if runner is not None:
+        return runner.run(coroutine)
+    return asyncio.run(coroutine)
 
 
 if __name__ == "__main__":

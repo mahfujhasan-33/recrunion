@@ -5,6 +5,7 @@ RecrUnion is a recruitment decision-support platform. Development and demonstrat
 
 ## Data processed
 The application may process:
+- internal company hiring-policy documents and extracted evidence chunks
 - candidate CV text and structured profile information
 - interview transcript segments
 - candidate scores and evidence-backed assessments
@@ -17,10 +18,11 @@ The current architecture may send limited data to:
 - **Bluesky** — approved public job-post content
 - **SMTP provider** — recipient address and notification message
 
-Local components such as SentenceTransformer, faster-whisper, PostgreSQL/pgvector, and ReportLab do not require sending candidate data to a separate external AI service.
+Company-policy embeddings are produced locally through Ollama using `nomic-embed-text`; source policy documents are not sent to an external embedding service. Relevant retrieved policy excerpts are sent to Gemini only when needed for JD generation and policy-alignment findings. Other local components such as faster-whisper, PostgreSQL/pgvector, and ReportLab do not require sending candidate data to a separate external AI service.
 
 ## Retention and minimization
 - raw audio/video recording is disabled by default
+- deleting a company document removes the managed original file, extracted chunks, and vectors; existing JD reviews retain only the evidence excerpt and source metadata required for historical traceability
 - only information required for screening, transcription, analysis, and assessment is persisted
 - unnecessary media should not be retained after transcription
 - RecrUnion provides candidate-data deletion for managed records and derived data

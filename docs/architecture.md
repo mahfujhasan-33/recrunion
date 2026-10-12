@@ -25,7 +25,7 @@ Application Services         Daily.co Media
                Adapter Layer
      +--------------+------------------------------+
      |              |            |       |         |
-   Gemini   SentenceTransformer Daily  Bluesky   SMTP
+   Gemini      Ollama/Nomic    Daily  Bluesky   SMTP
                     |
               PostgreSQL + pgvector
 ```
@@ -54,12 +54,28 @@ Router -> Service -> Repository / Adapter / Graph
 ## Planned graphs
 
 ### JD Graph
-`load requirements -> generate -> validate -> persist draft`
+`load requirements -> validate -> build retrieval query -> retrieve company policy -> generate -> validate -> evaluate policy alignment -> validate evidence references -> persist draft and review`
+
+An M2 enhancement graph handles recruiter-requested policy remediation:
+
+`load current JD -> retrieve fresh policy evidence -> evaluate current alignment -> select actionable findings -> enhance -> validate -> re-evaluate -> persist new JD version and review`
 
 Human approval happens outside the graph.
 
+### Recruiter Assistant Graph
+`interpret recruiter intent -> enforce typed action boundary -> service executes approved use case -> persist message/workspace artifact`
+
+The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, publication state, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval and external publication are never executed by the graph; the recruiter must use explicit confirmation actions. Publishing intent is resolved by the assistant, then deterministic lifecycle rules and `JobPublishingService` control execution.
+
+The M7.5 product enhancement keeps those boundaries while adding Blogger as a second
+`PublisherAdapter` implementation and Gmail/Drive REST adapters. Gmail messages are routed only by
+a stable job application code and exact subject, then normalized through the existing application
+intake service. Local managed storage remains the canonical CV store; Drive is a non-blocking archive
+mirror. Provider transports never own business validation and email body text never enters an AI
+workflow.
+
 ### F1 Screening Graph
-`load -> extract/structure -> embed/retrieve -> evaluate requirements -> validate evidence -> persist`
+`load persisted M5 profile/chunks -> retrieve relevant CV evidence -> evaluate requirements -> validate evidence -> persist`
 
 ### F11 Probe Graph
 `load candidate -> identify gaps -> prioritize -> generate probes -> validate -> persist`
@@ -71,13 +87,52 @@ Human approval happens outside the graph.
 `load F1/F2/F5 -> merge evidence -> strengths/weaknesses/gaps -> generate -> claim evidence validation -> persist`
 
 ## F2
-Final scoring is deterministic Python. LLMs may assist with structured evidence interpretation and justifications, not arbitrary final numeric scores.
+Final scoring is deterministic Python over validated persisted F1 outcomes. `F2_V1` maps
+`MET/PARTIALLY_MET/UNMET` to `100/50/0`, gives required requirements importance `1.0` and preferred
+requirements `0.5`, uses positive recruiter-configured relative dimension weights, renormalizes
+across applicable dimensions, and persists Decimal results rounded half-up to two places. Match
+Rank remains the separate F1 ordinal signal. No LLM, embedding, retrieval, or worker operation runs
+during F2 calculation.
 
 ## Vector search
-- local SentenceTransformer embeddings
-- requirement and CV chunk vectors
+- local Ollama `nomic-embed-text` embeddings for M2 company-policy chunks and queries
+- M2 policy vectors are 768-dimensional and stored in PostgreSQL + pgvector
+- M5 candidate/CV evidence vectors use the same model and 768-dimensional pgvector storage
 - PostgreSQL + pgvector cosine similarity
 - vector retrieval supplies evidence; it is not the sole decision mechanism
+
+## Company knowledge base
+Original PDF, DOCX, and TXT files are stored in a managed Docker volume. PostgreSQL stores document metadata, extracted chunks, vectors, ingestion status, and safe errors. Upload creates a `processing_jobs` record; the worker parses, chunks, embeds, and marks the document `READY` or `FAILED`. SHA-256 prevents duplicate uploads. Deleting a document removes its managed file and cascades its chunks/vectors.
+
+Policy reviews store immutable evidence snapshots, source identifiers, JD version/hash, related JD section, status, and explanation. This preserves historical review traceability after a source document is deleted, without retaining the complete deleted document. A review is current only when its JD version and content hash match the editable JD.
+
+## Application intake
+Recruiter batch upload accepts PDF CVs for an existing job. `ApplicationIntakeService` validates
+and hashes each file, applies job-scoped duplicate detection, stores it through the minimal
+`DocumentStorage` boundary, and persists `Candidate`, `JobApplication`, and `CandidateDocument`
+records. `LocalDocumentStorage` writes generated filenames beneath
+`/data/applications/<job-code>/`; client filenames never determine physical paths. M4 is
+synchronous because it performs only bounded validation, hashing, and local storage. External
+Drive/Form/email intake remains deferred.
+
+## Candidate evidence processing
+M5 queues each imported candidate document through the existing worker. `CandidateProcessingService`
+opens the managed PDF through `DocumentStorage`, extracts page-aware text, persists bounded evidence
+chunks, asks Gemini through `LLMAdapter` for a Pydantic-validated profile, validates every profile
+evidence reference, embeds chunks through Ollama/Nomic, and stores 768-dimensional vectors in
+PostgreSQL. `NEEDS_REVIEW` safely represents scanned/text-poor documents without adding OCR.
+Screening, matching, ranking, and scoring remain later milestones.
+
+## F1 candidate screening
+M6 queues one `SCREEN_CANDIDATE_APPLICATION` worker task per READY application. The Candidate
+Screening Graph loads the persisted M5 profile/chunks, embeds each job requirement as a Nomic query,
+retrieves only chunks owned by that application, evaluates all requirements in one structured
+Gemini call, validates every requirement/evidence ID deterministically, builds outcome counts, and
+persists the screening. Original PDFs are not reopened and candidate chunks are not re-embedded.
+
+Current completed results are ranked in application code by fewer required `UNMET`, fewer required
+`PARTIALLY_MET`, more required `MET`, then preferred outcomes and stable application ID. Stale,
+queued, processing, and failed screenings are not ranked. F2 weighted scoring remains separate.
 
 ## Background processing
 `processing_jobs` statuses:
@@ -85,6 +140,8 @@ Final scoring is deterministic Python. LLMs may assist with structured evidence 
 - RUNNING
 - COMPLETED
 - FAILED
+
+Each task also stores a 0–100 percentage and safe human-readable stage message. M2 uses `COMPANY_DOCUMENT_INGESTION` and `ASSISTANT_TURN`; M3 adds `JOB_PUBLICATION`; M5 adds `PROCESS_CANDIDATE_DOCUMENT`; M6 adds `SCREEN_CANDIDATE_APPLICATION`. Publication tasks make one provider attempt so an ambiguous external response is never retried automatically.
 
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
@@ -95,9 +152,11 @@ Daily.co provides cross-network media transport. RecrUnion persists session, can
 faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains acceptable.
 
 ## External actions
-- JobService --`generate/refine JD`--> Gemini
-- PublishingService --`publish approved job`--> Bluesky
-- ScreeningService --`embed/search evidence`--> SentenceTransformer + pgvector
+- JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
+- JobDescriptionGraph --`generate/evaluate JD`--> Gemini
+- JobPublishingService --`JobPublicationContent`--> PublisherAdapter --> BlueskyPublisher --> Bluesky
+- CandidateProcessingService --`embed CV evidence`--> Ollama/Nomic + pgvector
+- ScreeningService --`retrieve persisted CV evidence`--> pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
 - InterviewService --`create/join room`--> Daily
 - TranscriptionService --`transcribe audio`--> faster-whisper

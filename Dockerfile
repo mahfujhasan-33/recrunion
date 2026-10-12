@@ -6,11 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv/recrunion
 
 COPY pyproject.toml README.md ./
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY app ./app
 COPY worker ./worker
 
 RUN pip install --no-cache-dir . \
-    && useradd --create-home --uid 10001 recrunion
+    && useradd --create-home --uid 10001 recrunion \
+    && mkdir -p /data/company-documents /data/applications \
+    && chown -R recrunion:recrunion /data/company-documents /data/applications
 
 USER recrunion
 

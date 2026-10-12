@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.title }} · RecrUnion{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">{{ job.code }}</p>
+      <h1>{{ job.title }}</h1>
+      <p>{{ job.location }} · {{ job.employment_type.value | replace('_', ' ') | title }}</p>
+    </div>
+    <div class="actions">
+      <span class="status-badge">{{ job.status.value }}</span>
+      {% if job.status.value == "DRAFT" %}
+        <a class="button secondary" href="/jobs/{{ job.id }}/edit">Edit requirements</a>
+      {% endif %}
+      <button
+        class="button danger"
+        type="button"
+        data-delete-job-id="{{ job.id }}"
+        data-job-title="{{ job.title }}"
+      >Delete job</button>
+    </div>
+  </div>
+
+  <section class="detail-card">
+    <div class="card-heading">
+      <div>
+        <h2>Applications</h2>
+        <p><a href="mailto:{{ job.application_email }}">{{ job.application_email }}</a></p>
+        <p class="hint">Application code: <strong>{{ job.application_code }}</strong> · Email subject: <code>[{{ job.application_code }}] Application</code></p>
+      </div>
+      <a class="button secondary" href="/jobs/{{ job.id }}/applications">Manage applications</a>
+    </div>
+  </section>
+
+  <div class="detail-grid">
+    <section class="detail-card">
+      <h2>Required skills</h2>
+      <ul>{% for item in job.required_skills %}<li>{{ item }}</li>{% endfor %}</ul>
+    </section>
+    <section class="detail-card">
+      <h2>Preferred skills</h2>
+      {% if job.preferred_skills %}
+        <ul>{% for item in job.preferred_skills %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+    <section class="detail-card">
+      <h2>Experience</h2>
+      <p>
+        {% if job.minimum_experience is not none %}
+          {{ job.minimum_experience }} years minimum
+        {% else %}
+          No minimum specified.
+        {% endif %}
+      </p>
+    </section>
+    <section class="detail-card">
+      <h2>Qualifications</h2>
+      {% if job.qualifications %}
+        <ul>{% for item in job.qualifications %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+    <section class="detail-card">
+      <h2>Selection criteria</h2>
+      {% if job.selection_criteria %}
+        <ul>{% for item in job.selection_criteria %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}<p>None specified.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="detail-card job-description" data-job-id="{{ job.id }}">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">AI-assisted draft</p>
+        <h2>Job description</h2>
+      </div>
+      {% if job.jd_generated_at %}
+        <span class="hint">Generated {{ job.jd_generated_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+      {% endif %}
+    </div>
+
+    {% if job.status.value == "DRAFT" %}
+      <p>Generate a recruiter-editable description from the structured requirements above.</p>
+      <button id="generate-description" class="button" type="button">Generate description</button>
+    {% elif job.status.value == "GENERATED" %}
+      <form id="description-form" class="description-form">
+        <label>
+          Review and edit before approval
+          <textarea name="content" rows="24" required minlength="50">{{ job.jd_content }}</textarea>
+        </label>
+        <div class="actions">
+          <button class="button secondary" type="submit">Save description</button>
+          <button id="approve-description" class="button" type="button"{% if not policy_review.is_current %} disabled{% endif %}>Approve description</button>
+        </div>
+      </form>
+    {% elif job.status.value in ["APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
+      <p class="success-message">Approved{% if job.approved_at %} on {{ job.approved_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}.</p>
+      <pre class="description-content">{{ job.jd_content }}</pre>
+    {% endif %}
+
+    {% if job.jd_provider and job.jd_model %}
+      <p class="hint">Generated with {{ job.jd_provider }} · {{ job.jd_model }} · version {{ job.jd_version }}</p>
+    {% endif %}
+    <div id="description-feedback" class="form-error" role="status" hidden></div>
+  </section>
+
+  {% if job.status.value in ["APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
+    <section
+      class="detail-card publication-card"
+      data-publication-task-id="{{ publication.processing_task_id if publication else '' }}"
+    >
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">External announcement</p>
+          <h2>Blogger and Bluesky publication</h2>
+        </div>
+        <span class="status-badge{% if job.status.value == 'PUBLISH_FAILED' %} warning{% endif %}">{{ job.status.value }}</span>
+      </div>
+      {% if job.status.value == "APPROVED" %}
+        <p>Choose the approved external channels. Blogger receives the full JD; Bluesky receives a concise announcement.</p>
+        <div class="actions" id="publication-providers">
+          <label><input type="checkbox" value="BLOGGER" checked> Blogger</label>
+          <label><input type="checkbox" value="BLUESKY" checked> Bluesky</label>
+          <button id="publish-job" class="button" type="button">Publish selected</button>
+        </div>
+      {% elif job.status.value == "PUBLISHING" %}
+        <p id="publication-progress-message">{{ publication.status.value | title if publication else 'Publishing' }}</p>
+        <progress id="publication-progress" max="100" value="0">0%</progress>
+      {% endif %}
+      {% if publications %}
+        <div class="publication-results">
+          {% for item in publications %}
+            <article class="policy-finding">
+              <div class="card-heading"><strong>{{ item.provider | title }}</strong><span class="status-badge{% if item.status.value == 'FAILED' %} warning{% endif %}">{{ item.status.value }}</span></div>
+              {% if item.published_at %}<p class="hint">Published {{ item.published_at.strftime('%Y-%m-%d %H:%M UTC') }} · JD version {{ item.published_jd_version }}</p>{% endif %}
+              {% if item.external_url %}<a class="button secondary compact" href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">View {{ item.provider | title }}</a>{% endif %}
+              {% if item.status.value == 'FAILED' %}
+                <p>{{ item.error_message_safe or 'This channel could not be completed.' }}</p>
+                <button class="button compact" type="button" data-retry-provider="{{ item.provider }}">Retry {{ item.provider | title }}</button>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div id="publication-feedback" class="form-error" role="status" hidden></div>
+    </section>
+  {% endif %}
+
+  {% if job.status.value in ["GENERATED", "APPROVED", "PUBLISHING", "PUBLISHED", "PUBLISH_FAILED"] %}
+    <section class="detail-card policy-review" data-review-current="{{ 'true' if policy_review.is_current else 'false' }}">
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">Decision support</p>
+          <h2>Company-policy alignment</h2>
+        </div>
+        {% if policy_review.is_current %}
+          <span class="status-badge">CURRENT</span>
+        {% else %}
+          <span class="status-badge warning">RECHECK REQUIRED</span>
+        {% endif %}
+      </div>
+      <p class="hint">AI-assisted evidence review only; this is not a legal or compliance guarantee. Recruiter approval remains authoritative.</p>
+      {% if job.status.value == "GENERATED" %}
+        <div class="actions">
+          <button id="recheck-policy" class="button secondary" type="button">Re-check policy alignment</button>
+          {% if policy_review.is_current and policy_review.actionable_finding_count > 0 %}
+            <button id="enhance-description" class="button" type="button">Enhance using evidence</button>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if policy_review.message %}<p>{{ policy_review.message }}</p>{% endif %}
+      {% for finding in policy_review.findings %}
+        <article class="policy-finding">
+          <div class="card-heading">
+            <strong>{{ finding.source_filename }}</strong>
+            <span class="status-badge policy-{{ finding.status.value | lower }}">{{ finding.status.value | replace('_', ' ') }}</span>
+          </div>
+          <p class="hint">
+            {{ finding.source_document_type | replace('_', ' ') | title }}
+            {% if finding.page_number %} · page {{ finding.page_number }}{% endif %}
+            {% if finding.section_title %} · {{ finding.section_title }}{% endif %}
+            · relates to {{ finding.related_jd_section.value | replace('_', ' ') | lower }}
+          </p>
+          <blockquote>{{ finding.evidence_excerpt }}</blockquote>
+          <p>{{ finding.explanation }}</p>
+          {% if not finding.source_available %}<p class="hint">Source document deleted; historical evidence snapshot retained.</p>{% endif %}
+        </article>
+      {% endfor %}
+      <div id="policy-feedback" class="form-error" role="status" hidden></div>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/jobs.js?v=20261012-deletion-1" defer></script>
+{% endblock %}
