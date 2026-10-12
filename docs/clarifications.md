@@ -8,6 +8,46 @@ The BID states 20 working days total and also refers to 17 development days. Pro
 - Days 4–20: 17 development days
 - total planning basis: 20 working days / 160 hours
 
+## Project Manager reviewer schedule alignment
+
+On 12 October 2026, the Project Manager supplied a reviewer-facing delivery schedule through 27 October. The schedule changes implementation order and review dates only. Formal BID feature numbering and acceptance requirements remain authoritative.
+
+Reviewer-facing dates:
+
+- 5 Oct — Project setup & architecture
+- 6 Oct — Job Description Agent
+- 7 Oct — Job Posting & CV Collection
+- 8 Oct — CV Upload & Screening
+- 9 Oct — Semantic Ranking
+- 12 Oct — Candidate Scoring
+- 13 Oct — Score Persistence & Justification
+- 14 Oct — Interview Scheduling & Link
+- 15 Oct — Interview UI
+- 16 Oct — Video + Transcription
+- 19 Oct — Interviewer Co-pilot
+- 20 Oct — Q&A Analysis
+- 21 Oct — Requirement Mapping
+- 22 Oct — Consolidated Assessment
+- 23 Oct — Report & Comparison
+- 26 Oct — End-to-End Integration & Bug Fixing
+- 27 Oct — Final Demo / Reviewer Review
+
+The 19 October reviewer milestone covers the interview, transcription, and formal F11 Smart Interview Probe Generator / ProbeIQ presented as the **Interviewer Co-pilot**. Formal F5 Q&A analysis follows on 20 October, and formal F5 requirement mapping/evidence follows on 21 October. The reviewer labels must not be interpreted as formal SRS feature numbers.
+
+M7.5 multi-channel publishing and automated email intake is a completed enhancement beyond the core BID. It is not F11. Blogger remains an additional publication channel alongside Bluesky, and Google Forms remains deferred.
+
+## Human interview selection and scheduling
+
+Candidate ranking and scoring support recruiter decisions; they do not automatically select a candidate for interview or hire. The required flow is:
+
+`Match Rank + Suitability Score + Evidence → recruiter selects “Select for Interview”`
+
+The Project Manager approved bringing interview scheduling and invitation needs forward into M10A:
+
+`recruiter selects candidate → schedules date/time → creates unique interview session/link → sends invitation → optional calendar event`
+
+A future implementation may use `InterviewSchedulingService` coordinating `VideoAdapter` (Daily.co), `EmailAdapter` (interview invitation), and an optional `CalendarAdapter`. This clarification does not implement those components. Final decision communication, rejection notification, and shortlist notification where applicable remain in M15.
+
 ## WBS AI-use exception
 The BID says WBS/SRS/workflow diagram should be completed without AI support. The project owner/user has stated that PM permission was later granted to use AI for the WBS. Retain the approval evidence if available.
 
