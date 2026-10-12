@@ -46,7 +46,36 @@ The Project Manager approved bringing interview scheduling and invitation needs 
 
 `recruiter selects candidate → schedules date/time → creates unique interview session/link → sends invitation → optional calendar event`
 
-A future implementation may use `InterviewSchedulingService` coordinating `VideoAdapter` (Daily.co), `EmailAdapter` (interview invitation), and an optional `CalendarAdapter`. This clarification does not implement those components. Final decision communication, rejection notification, and shortlist notification where applicable remain in M15.
+A future implementation may use `InterviewSchedulingService` coordinating interview persistence,
+`EmailAdapter` (interview invitation), and an optional `CalendarAdapter`. M10A does not provision an
+external video room; the persisted `InterviewSession` is the logical room. This clarification does
+not implement those components. Final decision communication, rejection notification, and
+shortlist notification where applicable remain in M15.
+
+## Approved F3/F4 implementation architecture change
+
+The original F3 implementation baseline was Daily.co. The approved implementation is native
+two-party browser WebRTC for exactly one interviewer and one candidate. FastAPI WebSocket handles
+SDP offer/answer, ICE candidates, and participant/session presence only. Media remains between the
+browser peers, using configured STUN/TURN connectivity with coturn planned as the TURN server.
+FastAPI must not proxy media, and no SFU, group-conferencing platform, or video SaaS is planned.
+
+The original F4 implementation baseline was local faster-whisper CPU transcription. The approved
+implementation is AssemblyAI Universal Streaming behind the provider-neutral `STTAdapter`.
+Participant browsers send separate transcription audio streams through a session-scoped RecrUnion
+STT WebSocket, so authenticated connection context supplies deterministic `CANDIDATE` or
+`INTERVIEWER` speaker identity. AssemblyAI diarization is not a core requirement.
+
+The normalized `TranscriptEvent` contract contains interview ID, participant role, start/end
+timestamps, text, final/partial state, nullable confidence, and only necessary internal provider
+metadata. Interview/session models, browser capture, transcript storage/UI, speaker attribution,
+F5, and F6 remain provider-neutral. Raw audio is sent to the configured STT provider only for live
+transcription and is not stored by default.
+
+Formal F3 and F4 acceptance behavior is unchanged. The reviewed WBS is not rewritten: its Daily and
+CPU-STT lines record the previous implementation assumptions. ADR-016 supersedes those provider
+choices while retaining the WBS's lifecycle, cross-network, controls, persistence, reconnect,
+speaker/timestamp, and live-transcript work.
 
 ## WBS AI-use exception
 The BID says WBS/SRS/workflow diagram should be completed without AI support. The project owner/user has stated that PM permission was later granted to use AI for the WBS. Retain the approval evidence if available.
@@ -117,10 +146,13 @@ The M1/M2 workflow is also available through one persistent recruiter-assistant 
 Gemini behind `LLMAdapter`. Use only sample/synthetic candidate data.
 
 ## Video
-Daily.co for reliable cross-network browser video/audio. RecrUnion owns interview session/auth/status/transcript/analysis. Recording off by default.
+Browser-native WebRTC for one interviewer and one candidate. FastAPI WebSocket provides signalling
+only; STUN/TURN with planned coturn supports cross-network connectivity. RecrUnion owns interview
+session/auth/status/transcript/analysis. Raw recording is off by default.
 
 ## STT
-Local faster-whisper, CPU INT8. Start with `tiny.en` or `base.en`; benchmark.
+AssemblyAI Universal Streaming behind provider-neutral `STTAdapter`. Separate participant streams
+provide speaker identity. RecrUnion persists normalized transcript segments, not raw audio.
 
 ## Background work
 Python worker + PostgreSQL `processing_jobs`. No Redis/Celery.
@@ -148,7 +180,8 @@ F7–F10 remain optional and must wait until F1–F6 + F11 are working.
 
 ## Confirm at kickoff
 - exact Gemini model/quota
-- Daily account/domain/API key
+- WebRTC STUN/TURN endpoints and coturn credentials for cross-network verification
+- AssemblyAI API key and Universal Streaming availability/limits
 - Bluesky demo account/app password
 - SMTP account
 - candidate/CV retrieval tuning (M2 policy and M5 CV vectors use `nomic-embed-text`, 768 dimensions)

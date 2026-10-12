@@ -5,35 +5,50 @@ Use the simplest architecture that still satisfies all six mandatory core featur
 
 ## Runtime
 ```text
-Recruiter / Candidate Browser
-            |
-            v
+Candidate Browser  <====== browser-native WebRTC media ======>  Interviewer Browser
+        |                                                         |
+        +--------- SDP / ICE / presence signalling ---------------+
+                                  |
+                                  v
+                         FastAPI WebSocket
+
+Each browser microphone
+        |
+        +--> WebRTC track to the remote participant
+        |
+        +--> transcription audio copy
+                 |
+                 v
+        RecrUnion STT WebSocket
+                 |
+          STTSessionService
+                 |
+             STTAdapter
+                 |
+    AssemblyAIStreamingSTTAdapter
+                 |
+       normalized TranscriptEvent
+                 |
+      PostgreSQL + live transcript UI
+
 FastAPI Web Application
 (Jinja2 + HTML/CSS/Vanilla JS)
-            |
-     +------+----------------------+
-     |                             |
-     v                             v
-Application Services         Daily.co Media
-     |
-     +--> processing_jobs --> Python Worker
-     |                           |
-     |                        LangGraph
-     |                           |
-     +--------------+------------+
-                    |
-               Adapter Layer
-     +--------------+------------------------------+
-     |              |            |       |         |
-   Gemini      Ollama/Nomic    Daily  Bluesky   SMTP
-                    |
-              PostgreSQL + pgvector
+        |
+        +--> Application Services
+        +--> processing_jobs --> Python Worker --> LangGraph
+        +--> Adapter Layer --> Gemini / Ollama-Nomic / Bluesky / SMTP / AssemblyAI
+        +--> PostgreSQL + pgvector
 ```
 
-Containers:
+Current containers:
 1. `app`
 2. `worker`
 3. `postgres`
+
+`coturn` is planned as a later additional Docker Compose service for TURN relay verification. STUN
+and TURN configuration support cross-network peer connectivity. FastAPI performs signalling only;
+it never proxies audio/video media. The F3 scope is exactly one interviewer and one candidate, with
+no SFU, group conferencing, Daily.co, LiveKit, Jitsi, Janus, or mediasoup.
 
 Baseline excludes Nginx, Redis, Celery, ChromaDB, Kubernetes, and microservices.
 
@@ -146,10 +161,31 @@ Each task also stores a 0–100 percentage and safe human-readable stage message
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
 ## Interview
-Daily.co provides cross-network media transport. RecrUnion persists session, candidate, job, interviewer, status, start/end, transcript, and analysis. Recording is off by default.
+The persisted `InterviewSession` is the logical interview room. M10A creates no external video
+room: a recruiter manually selects a candidate, schedules date/time/timezone/duration, persists the
+session, creates a secure candidate-scoped RecrUnion join token/link, and sends the Gmail
+invitation. Calendar integration remains optional and deferred.
+
+M10B uses browser `getUserMedia()` and `RTCPeerConnection` for local preview, peer negotiation,
+remote rendering, mute, camera toggle, and end-call controls. A FastAPI WebSocket carries only SDP
+offers/answers, ICE candidates, and session presence. M10C owns reconnect handling, ICE/network
+failure behavior, waiting/active/ended persistence, cross-network verification, and coturn
+verification. Raw media travels directly peer-to-peer when possible or through TURN when required;
+it never traverses FastAPI.
 
 ## STT
-faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains acceptable.
+`STTAdapter` is the stable provider-neutral boundary. The current implementation choice is
+AssemblyAI Universal Streaming, isolated in `AssemblyAIStreamingSTTAdapter`. Each authenticated,
+session-scoped participant sends a separate transcription stream, so `participant_role` is
+deterministically `CANDIDATE` or `INTERVIEWER` without making provider diarization a requirement.
+
+The browser sends a microphone audio copy through the RecrUnion STT WebSocket to
+`STTSessionService`, which emits normalized `TranscriptEvent` values containing interview ID,
+participant role, start/end timestamps, text, final/partial state, nullable confidence, and only
+necessary internal provider metadata. `InterviewSession`, browser capture contracts, transcript
+persistence/UI, speaker attribution, F5, and F6 never depend on AssemblyAI response schemas.
+Possible future adapters include Deepgram, Groq/Whisper, and faster-whisper, but no alternative or
+automatic provider failover is part of the current scope.
 
 ## External actions
 - JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
@@ -158,8 +194,9 @@ faster-whisper, CPU INT8. Start with `tiny.en`; try `base.en` if latency remains
 - CandidateProcessingService --`embed CV evidence`--> Ollama/Nomic + pgvector
 - ScreeningService --`retrieve persisted CV evidence`--> pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
-- InterviewService --`create/join room`--> Daily
-- TranscriptionService --`transcribe audio`--> faster-whisper
+- Browser peers --`SDP/ICE signalling only`--> FastAPI WebSocket
+- Browser peers --`audio/video media`--> WebRTC P2P or configured STUN/TURN path
+- STTSessionService --`participant-scoped audio copy`--> STTAdapter --> AssemblyAI Universal Streaming
 - AnalysisGraph --`evaluate Q&A`--> Gemini
 - AssessmentGraph --`generate narrative`--> Gemini
 - AssessmentService --`generate PDF`--> ReportLab
@@ -186,3 +223,6 @@ Potential MCP tools:
 `docker compose up --build`
 
 Use environment variables for provider credentials and configuration.
+
+The existing architecture PNG assets predate ADR-016 and require a later diagram refresh; they are
+not edited in this documentation-only clarification.
