@@ -11,6 +11,7 @@ from app.models.assistant import (
     AssistantMessageRole,
 )
 from app.models.jobs import EmploymentType
+from app.schemas.email_intake import EmailSyncStatusResponse
 from app.schemas.job_publications import JobPublicationResponse
 from app.schemas.jobs import JobResponse
 from app.schemas.policy_findings import PolicyReviewResponse
@@ -28,6 +29,8 @@ class AssistantIntent(StrEnum):
     PUBLISH_JOB = "PUBLISH_JOB"
     RETRY_JOB_PUBLICATION = "RETRY_JOB_PUBLICATION"
     GET_PUBLICATION_STATUS = "GET_PUBLICATION_STATUS"
+    FETCH_EMAIL_APPLICATIONS = "FETCH_EMAIL_APPLICATIONS"
+    GET_EMAIL_INTAKE_STATUS = "GET_EMAIL_INTAKE_STATUS"
     HELP = "HELP"
 
 
@@ -87,6 +90,7 @@ class AssistantRequiredAction(BaseModel):
     label: str
     severity: str
     message: str
+    provider: str | None = None
 
 
 class AssistantWorkspaceResponse(BaseModel):
@@ -96,6 +100,8 @@ class AssistantWorkspaceResponse(BaseModel):
     job: JobResponse | None
     policy_review: PolicyReviewResponse | None
     publication: JobPublicationResponse | None
+    publications: list[JobPublicationResponse] = Field(default_factory=list)
+    email_intake: EmailSyncStatusResponse | None = None
     required_actions: list[AssistantRequiredAction]
 
 

@@ -3,7 +3,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
 
-from app.dependencies import get_application_intake_service, get_candidate_processing_service
+from app.dependencies import (
+    get_application_intake_service,
+    get_candidate_processing_service,
+    get_deletion_service,
+)
 from app.schemas.applications import (
     ApplicationBatchUploadResponse,
     ApplicationDetailResponse,
@@ -13,6 +17,7 @@ from app.schemas.applications import (
 )
 from app.services.application_intake import ApplicationIntakeService, IncomingCandidateDocument
 from app.services.candidate_processing import CandidateProcessingService
+from app.services.deletions import DeletionService
 
 router = APIRouter(prefix="/api/v1/jobs/{job_id}/applications", tags=["applications"])
 ApplicationIntakeServiceDependency = Annotated[
@@ -23,6 +28,7 @@ CandidateProcessingServiceDependency = Annotated[
     CandidateProcessingService,
     Depends(get_candidate_processing_service),
 ]
+DeletionServiceDependency = Annotated[DeletionService, Depends(get_deletion_service)]
 
 
 @router.post("/upload", response_model=ApplicationBatchUploadResponse)
@@ -82,3 +88,12 @@ def get_application(
     service: ApplicationIntakeServiceDependency,
 ) -> ApplicationDetailResponse:
     return service.get_application(job_id, application_id)
+
+
+@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_application(
+    job_id: UUID,
+    application_id: UUID,
+    service: DeletionServiceDependency,
+) -> None:
+    service.delete_application(job_id, application_id)

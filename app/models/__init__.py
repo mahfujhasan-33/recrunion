@@ -1,6 +1,7 @@
 """Persistence models exposed to SQLAlchemy metadata."""
 
 from app.models.applications import (
+    ApplicationIntakeReceipt,
     ApplicationSource,
     ApplicationStatus,
     Candidate,
@@ -8,6 +9,8 @@ from app.models.applications import (
     CandidateDocument,
     CandidateDocumentProcessingStatus,
     CandidateProfile,
+    DriveArchiveStatus,
+    IntakeReceiptStatus,
     JobApplication,
 )
 from app.models.assistant import (
@@ -50,6 +53,7 @@ from app.models.screening import (
 )
 
 __all__ = [
+    "ApplicationIntakeReceipt",
     "ApplicationSource",
     "ApplicationStatus",
     "AssistantArtifact",
@@ -72,8 +76,10 @@ __all__ = [
     "CompanyDocumentChunk",
     "CompanyDocumentStatus",
     "CompanyDocumentType",
+    "DriveArchiveStatus",
     "EmploymentType",
     "EvidenceCoverage",
+    "IntakeReceiptStatus",
     "Job",
     "JobApplication",
     "JobDescriptionPolicyFinding",

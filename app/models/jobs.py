@@ -56,6 +56,13 @@ class Job(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    application_code: Mapped[str] = mapped_column(
+        String(20),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: f"RU-{uuid4().hex[:8].upper()}",
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     location: Mapped[str] = mapped_column(String(200), nullable=False)
     employment_type: Mapped[EmploymentType] = mapped_column(
@@ -84,6 +91,11 @@ class Job(Base):
     approved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+    drive_folder_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    drive_folder_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    drive_folder_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     jd_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     jd_model: Mapped[str | None] = mapped_column(String(100), nullable=True)

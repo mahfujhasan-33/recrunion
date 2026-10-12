@@ -29,7 +29,12 @@ class PublicationStatus(StrEnum):
 class JobPublication(Base):
     __tablename__ = "job_publications"
     __table_args__ = (
-        UniqueConstraint("job_id", "attempt_number", name="uq_job_publication_attempt"),
+        UniqueConstraint(
+            "job_id",
+            "provider",
+            "attempt_number",
+            name="uq_job_publication_provider_attempt",
+        ),
         Index("ix_job_publications_job_created", "job_id", "created_at"),
         Index("ix_job_publications_status", "status"),
     )
@@ -37,7 +42,7 @@ class JobPublication(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     processing_task_id: Mapped[UUID] = mapped_column(
-        ForeignKey("processing_jobs.id", ondelete="RESTRICT"), nullable=False, unique=True
+        ForeignKey("processing_jobs.id", ondelete="RESTRICT"), nullable=False
     )
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[PublicationStatus] = mapped_column(
@@ -52,6 +57,7 @@ class JobPublication(Base):
         server_default=PublicationStatus.QUEUED.value,
     )
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    published_jd_version: Mapped[int] = mapped_column(Integer, nullable=False)
     external_post_uri: Mapped[str | None] = mapped_column(String(500), nullable=True)
     external_record_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

@@ -14,6 +14,12 @@
       {% if job.status.value == "DRAFT" %}
         <a class="button secondary" href="/jobs/{{ job.id }}/edit">Edit requirements</a>
       {% endif %}
+      <button
+        class="button danger"
+        type="button"
+        data-delete-job-id="{{ job.id }}"
+        data-job-title="{{ job.title }}"
+      >Delete job</button>
     </div>
   </div>
 
@@ -22,6 +28,7 @@
       <div>
         <h2>Applications</h2>
         <p><a href="mailto:{{ job.application_email }}">{{ job.application_email }}</a></p>
+        <p class="hint">Application code: <strong>{{ job.application_code }}</strong> · Email subject: <code>[{{ job.application_code }}] Application</code></p>
       </div>
       <a class="button secondary" href="/jobs/{{ job.id }}/applications">Manage applications</a>
     </div>
@@ -106,26 +113,35 @@
       <div class="card-heading">
         <div>
           <p class="eyebrow">External announcement</p>
-          <h2>Bluesky publication</h2>
+          <h2>Blogger and Bluesky publication</h2>
         </div>
         <span class="status-badge{% if job.status.value == 'PUBLISH_FAILED' %} warning{% endif %}">{{ job.status.value }}</span>
       </div>
       {% if job.status.value == "APPROVED" %}
-        <p>Publish a concise announcement generated deterministically from this approved job.</p>
-        <button id="publish-job" class="button" type="button">Publish job</button>
+        <p>Choose the approved external channels. Blogger receives the full JD; Bluesky receives a concise announcement.</p>
+        <div class="actions" id="publication-providers">
+          <label><input type="checkbox" value="BLOGGER" checked> Blogger</label>
+          <label><input type="checkbox" value="BLUESKY" checked> Bluesky</label>
+          <button id="publish-job" class="button" type="button">Publish selected</button>
+        </div>
       {% elif job.status.value == "PUBLISHING" %}
         <p id="publication-progress-message">{{ publication.status.value | title if publication else 'Publishing' }}</p>
         <progress id="publication-progress" max="100" value="0">0%</progress>
-      {% elif job.status.value == "PUBLISHED" and publication %}
-        <p class="success-message">
-          Published to {{ publication.provider | title }}{% if publication.published_at %} on {{ publication.published_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}.
-        </p>
-        {% if publication.external_url %}
-          <a class="button secondary" href="{{ publication.external_url }}" target="_blank" rel="noopener noreferrer">View Bluesky post</a>
-        {% endif %}
-      {% elif job.status.value == "PUBLISH_FAILED" %}
-        <p>{{ publication.error_message_safe if publication and publication.error_message_safe else 'The publication could not be completed.' }}</p>
-        <button id="retry-publication" class="button" type="button">Retry publishing</button>
+      {% endif %}
+      {% if publications %}
+        <div class="publication-results">
+          {% for item in publications %}
+            <article class="policy-finding">
+              <div class="card-heading"><strong>{{ item.provider | title }}</strong><span class="status-badge{% if item.status.value == 'FAILED' %} warning{% endif %}">{{ item.status.value }}</span></div>
+              {% if item.published_at %}<p class="hint">Published {{ item.published_at.strftime('%Y-%m-%d %H:%M UTC') }} · JD version {{ item.published_jd_version }}</p>{% endif %}
+              {% if item.external_url %}<a class="button secondary compact" href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">View {{ item.provider | title }}</a>{% endif %}
+              {% if item.status.value == 'FAILED' %}
+                <p>{{ item.error_message_safe or 'This channel could not be completed.' }}</p>
+                <button class="button compact" type="button" data-retry-provider="{{ item.provider }}">Retry {{ item.provider | title }}</button>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
       {% endif %}
       <div id="publication-feedback" class="form-error" role="status" hidden></div>
     </section>
@@ -177,5 +193,5 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/js/jobs.js?v=20261007-m3-publishing-1" defer></script>
+  <script src="/static/js/jobs.js?v=20261012-deletion-1" defer></script>
 {% endblock %}

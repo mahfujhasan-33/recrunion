@@ -58,6 +58,7 @@ def job_detail(
             "job": service.get_job(job_id),
             "policy_review": policy_service.get_latest(job_id),
             "publication": publishing_service.get_latest(job_id),
+            "publications": publishing_service.list_latest(job_id),
         },
     )
 

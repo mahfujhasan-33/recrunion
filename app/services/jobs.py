@@ -24,6 +24,7 @@ class JobService:
         job = Job(
             id=job_id,
             code=f"JOB-{job_id.hex[:8].upper()}",
+            application_code=f"RU-{job_id.hex[:8].upper()}",
             title=request.title,
             location=request.location,
             employment_type=request.employment_type,
@@ -148,6 +149,7 @@ class JobService:
         return JobResponse(
             id=job.id,
             code=job.code,
+            application_code=job.application_code,
             title=job.title,
             location=job.location,
             employment_type=job.employment_type,

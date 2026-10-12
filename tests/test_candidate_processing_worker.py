@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Engine
+from sqlalchemy import Engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.errors import CandidateProcessingError
@@ -116,6 +116,58 @@ def test_worker_records_safe_candidate_processing_failure(
         assert task.status == ProcessingJobStatus.FAILED
         assert task.error_code == "CANDIDATE_PROCESSING_FAILED"
         assert task.error_message_safe == "The candidate document could not be processed."
+
+
+def test_worker_recovers_failed_database_transaction_before_marking_task_failed(
+    database_engine: Engine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = sessionmaker(bind=database_engine, expire_on_commit=False)
+    task_id = uuid4()
+    entity_id = uuid4()
+    with factory() as session:
+        session.add(
+            ProcessingJob(
+                id=task_id,
+                job_type=ProcessingJobType.PROCESS_CANDIDATE_DOCUMENT,
+                entity_type="CANDIDATE_DOCUMENT",
+                entity_id=entity_id,
+                max_attempts=1,
+            )
+        )
+        session.commit()
+
+    class DatabaseFailingService:
+        def __init__(self, session: Session) -> None:
+            self._session = session
+
+        async def process(self, document_id, report) -> None:
+            self._session.execute(
+                insert(ProcessingJob).values(
+                    id=task_id,
+                    job_type=ProcessingJobType.PROCESS_CANDIDATE_DOCUMENT,
+                    entity_type="CANDIDATE_DOCUMENT",
+                    entity_id=document_id,
+                )
+            )
+
+    monkeypatch.setattr(worker_main, "SessionFactory", factory)
+    monkeypatch.setattr(worker_main, "get_settings", lambda: worker_settings(tmp_path))
+    monkeypatch.setattr(
+        worker_main,
+        "build_candidate_processing_service",
+        lambda session, *args, **kwargs: DatabaseFailingService(session),
+    )
+
+    assert worker_main.process_next_task() is True
+
+    with Session(database_engine) as session:
+        task = session.get(ProcessingJob, task_id)
+        assert task is not None
+        assert task.status == ProcessingJobStatus.FAILED
+        assert task.error_code == "BACKGROUND_TASK_FAILED"
+        assert task.error_message_safe == "The background task could not be completed."
 
 
 def test_worker_dispatches_candidate_screening_and_reports_progress(

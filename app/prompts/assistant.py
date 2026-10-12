@@ -29,6 +29,8 @@ Supported intents:
 - PUBLISH_JOB: request publication of the active approved job.
 - RETRY_JOB_PUBLICATION: explicitly retry a failed publication.
 - GET_PUBLICATION_STATUS: report the active job's publication state.
+- FETCH_EMAIL_APPLICATIONS: fetch application emails for the active job.
+- GET_EMAIL_INTAKE_STATUS: report the active job's latest email-intake state.
 - HELP: answer workflow questions without changing state.
 
 For DRAFT_REQUIREMENTS or UPDATE_REQUIREMENTS, return the complete revised requirements,

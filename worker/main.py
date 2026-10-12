@@ -6,10 +6,12 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
+from app.adapters.blogger import BloggerPublisher
 from app.adapters.bluesky import BlueskyPublisher
 from app.adapters.document_parser import CompanyDocumentParser
 from app.adapters.document_storage import LocalDocumentStorage
 from app.adapters.gemini import GeminiLLMAdapter
+from app.adapters.google_oauth import GoogleOAuthClient, GoogleOAuthCredentials
 from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
 from app.config import get_settings
 from app.database import SessionFactory
@@ -17,6 +19,7 @@ from app.dependencies import (
     build_assistant_service,
     build_candidate_processing_service,
     build_candidate_screening_service,
+    build_email_intake_service,
     build_job_publishing_service,
 )
 from app.errors import CompanyDocumentValidationError, RecrUnionError
@@ -51,9 +54,13 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
     settings = get_settings()
     with SessionFactory() as session:
         task_repository = ProcessingJobRepository(session)
+        if getattr(settings, "email_auto_sync_enabled", False):
+            build_email_intake_service(session).queue_due()
         task = task_repository.claim_next()
         if task is None:
             return False
+        task_id = task.id
+        task_entity_id = task.entity_id
         try:
             embedding_adapter = OllamaEmbeddingAdapter(
                 base_url=settings.ollama_base_url,
@@ -101,10 +108,33 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
                         service_url=settings.bluesky_service_url,
                         timeout_seconds=settings.bluesky_timeout_seconds,
                     ),
+                    BloggerPublisher(
+                        blog_id=settings.blogger_blog_id,
+                        oauth=GoogleOAuthClient(
+                            GoogleOAuthCredentials(
+                                settings.blogger_client_id,
+                                settings.blogger_client_secret,
+                                settings.blogger_refresh_token,
+                            )
+                        ),
+                        api_base_url=settings.blogger_api_base_url,
+                        timeout_seconds=settings.blogger_timeout_seconds,
+                    ),
                 )
                 _run_async(
                     publishing.process(
                         task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.SYNC_EMAIL_APPLICATIONS:
+                email_intake = build_email_intake_service(session)
+                _run_async(
+                    email_intake.process(
+                        task.id,
                         lambda progress, message: task_repository.update_progress(
                             task, progress, message
                         ),
@@ -157,10 +187,18 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
                 raise CompanyDocumentValidationError("Unsupported background job type.")
             task_repository.complete(task)
         except Exception as error:
+            session.rollback()
+            failed_task = task_repository.get(task_id)
+            if failed_task is None:
+                logger.error(
+                    "Background task disappeared after failure",
+                    extra={"task_id": str(task_id), "entity_id": str(task_entity_id)},
+                )
+                return True
             if isinstance(error, CompanyDocumentValidationError):
-                task.max_attempts = task.attempt_count
+                failed_task.max_attempts = failed_task.attempt_count
             if isinstance(error, RecrUnionError) and not getattr(error, "retryable", True):
-                task.max_attempts = task.attempt_count
+                failed_task.max_attempts = failed_task.attempt_count
             code = error.code if isinstance(error, RecrUnionError) else "BACKGROUND_TASK_FAILED"
             safe_message = (
                 str(error)
@@ -168,15 +206,15 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
                 else "The background task could not be completed."
             )
             task_repository.fail_or_retry(
-                task,
+                failed_task,
                 code,
                 safe_message,
             )
             logger.warning(
                 "Background task failed",
                 extra={
-                    "task_id": str(task.id),
-                    "entity_id": str(task.entity_id),
+                    "task_id": str(task_id),
+                    "entity_id": str(task_entity_id),
                     "error_code": code,
                 },
             )

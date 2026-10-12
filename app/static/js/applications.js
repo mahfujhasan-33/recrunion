@@ -15,6 +15,14 @@ const profilePanel = document.querySelector("#candidate-profile-panel");
 const profileTitle = document.querySelector("#candidate-profile-title");
 const profileContent = document.querySelector("#candidate-profile-content");
 const closeProfileButton = document.querySelector("#close-candidate-profile");
+const emailIntakeCard = document.querySelector("#email-intake-card");
+const fetchEmailButton = document.querySelector("#fetch-email-applications");
+const emailSyncProgress = document.querySelector("#email-sync-progress");
+const emailSyncMessage = document.querySelector("#email-sync-message");
+const emailSyncPercentage = document.querySelector("#email-sync-percentage");
+const emailSyncProgressBar = document.querySelector("#email-sync-progress-bar");
+const emailSyncSummary = document.querySelector("#email-sync-summary");
+const emailSyncFeedback = document.querySelector("#email-sync-feedback");
 
 function showFeedback(message) {
   feedback.textContent = message;
@@ -83,6 +91,7 @@ function renderApplications(applications) {
       waiting.textContent = "Task in progress";
       actions.append(waiting);
     }
+    actions.append(actionButton("Delete", "deleteApplicationId", application.id, false, true));
     tableBody.append(row);
   });
   document.dispatchEvent(new CustomEvent("applications:rendered"));
@@ -97,10 +106,10 @@ function addStatusCell(row, status) {
   cell.append(badge);
 }
 
-function actionButton(label, dataName, id, secondary = false) {
+function actionButton(label, dataName, id, secondary = false, danger = false) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `button compact${secondary ? " secondary" : ""}`;
+  button.className = `button compact${secondary ? " secondary" : ""}${danger ? " danger" : ""}`;
   button.textContent = label;
   button.dataset[dataName] = id;
   return button;
@@ -108,6 +117,7 @@ function actionButton(label, dataName, id, secondary = false) {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
+  if (response.status === 204) return null;
   const body = await response.json();
   if (!response.ok) throw new Error(body.message || "The request could not be completed.");
   return body;
@@ -251,6 +261,27 @@ uploadForm?.addEventListener("submit", async (event) => {
 });
 
 tableBody?.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-delete-application-id]");
+  if (deleteButton) {
+    const confirmed = window.confirm(
+      "Delete this application, its managed CV, extracted profile, evidence, screening, and " +
+        "score? This cannot be undone. A Drive archive copy is not removed, and an email " +
+        "application may be fetched again while its source message remains.",
+    );
+    if (!confirmed) return;
+    deleteButton.disabled = true;
+    feedback.hidden = true;
+    fetchJson(
+      `/api/v1/jobs/${uploadForm.dataset.jobId}/applications/${deleteButton.dataset.deleteApplicationId}`,
+      { method: "DELETE" },
+    )
+      .then(() => window.location.reload())
+      .catch((error) => {
+        showFeedback(error.message);
+        deleteButton.disabled = false;
+      });
+    return;
+  }
   const processButton = event.target.closest("[data-process-application-id]");
   if (processButton) {
     startProcessing(processButton.dataset.processApplicationId, processButton);
@@ -285,3 +316,50 @@ processPendingButton?.addEventListener("click", async () => {
 closeProfileButton?.addEventListener("click", () => {
   profilePanel.hidden = true;
 });
+
+function renderEmailStatus(status) {
+  if (!status.task_id) return;
+  emailSyncProgress.hidden = false;
+  emailSyncMessage.textContent = status.progress_message || "Email sync queued";
+  emailSyncPercentage.textContent = `${status.progress || 0}%`;
+  emailSyncProgressBar.value = status.progress || 0;
+  if (status.summary) {
+    const value = status.summary;
+    emailSyncSummary.textContent = `${value.matched} matched · ${value.imported} imported · ${value.duplicates} duplicates · ${value.needs_review} need review · ${value.rejected} rejected · ${value.drive_archived} archived to Drive · ${value.drive_archive_failed} archive retries pending`;
+  }
+}
+
+async function pollEmailSync() {
+  const status = await fetchJson(
+    `/api/v1/jobs/${emailIntakeCard.dataset.jobId}/applications/email-sync`,
+  );
+  renderEmailStatus(status);
+  if (["QUEUED", "RUNNING"].includes(status.task_status)) {
+    window.setTimeout(pollEmailSync, 1200);
+    return;
+  }
+  fetchEmailButton.disabled = false;
+  await refreshApplications();
+}
+
+fetchEmailButton?.addEventListener("click", async () => {
+  fetchEmailButton.disabled = true;
+  emailSyncFeedback.hidden = true;
+  try {
+    await fetchJson(`/api/v1/jobs/${emailIntakeCard.dataset.jobId}/applications/email-sync`, {
+      method: "POST",
+    });
+    await pollEmailSync();
+  } catch (error) {
+    emailSyncFeedback.textContent = error.message;
+    emailSyncFeedback.hidden = false;
+    fetchEmailButton.disabled = false;
+  }
+});
+
+if (emailIntakeCard) {
+  pollEmailSync().catch((error) => {
+    emailSyncFeedback.textContent = error.message;
+    emailSyncFeedback.hidden = false;
+  });
+}

@@ -14,6 +14,7 @@ from app.schemas.candidate_profiles import CandidateProfileData
 
 class ApplicationResponse(BaseModel):
     id: UUID
+    document_id: UUID
     reference: str
     candidate_id: UUID
     candidate_display_reference: str

@@ -91,7 +91,9 @@ Candidate: interview-scoped secure join token; no registration.
 
 ## Notifications
 Outbound shortlist/final-decision notification through `EmailAdapter` with SMTP baseline.
-Inbound application email remains outside integration scope.
+Inbound application email was pulled forward as an approved M7.5 product enhancement beyond core
+BID. It uses exact-subject Gmail REST discovery, accepts one PDF attachment, and feeds the existing
+application intake pipeline. Google Forms remains outside scope.
 
 ## MCP/API
 User intends to use MCP/API tool integration.

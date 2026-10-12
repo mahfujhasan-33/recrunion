@@ -34,11 +34,31 @@ class Settings(BaseSettings):
     policy_retrieval_min_similarity: float = Field(default=0.3, ge=-1, le=1)
     screening_retrieval_top_k: int = Field(default=4, ge=1, le=10)
     screening_retrieval_min_similarity: float = Field(default=0.25, ge=-1, le=1)
-    publisher_provider: Literal["bluesky"] = "bluesky"
+    publisher_provider: str = "bluesky,blogger"
     bluesky_identifier: str = ""
     bluesky_app_password: str = ""
     bluesky_service_url: str = "https://bsky.social"
     bluesky_timeout_seconds: float = Field(default=15.0, gt=0)
+    blogger_blog_id: str = ""
+    blogger_client_id: str = ""
+    blogger_client_secret: str = ""
+    blogger_refresh_token: str = ""
+    blogger_api_base_url: str = "https://www.googleapis.com/blogger/v3"
+    blogger_timeout_seconds: float = Field(default=20.0, gt=0)
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_refresh_token: str = ""
+    gmail_api_base_url: str = "https://gmail.googleapis.com/gmail/v1"
+    gmail_timeout_seconds: float = Field(default=20.0, gt=0)
+    drive_client_id: str = ""
+    drive_client_secret: str = ""
+    drive_refresh_token: str = ""
+    drive_parent_folder_id: str = "root"
+    drive_api_base_url: str = "https://www.googleapis.com/drive/v3"
+    drive_upload_base_url: str = "https://www.googleapis.com/upload/drive/v3"
+    drive_timeout_seconds: float = Field(default=30.0, gt=0)
+    email_auto_sync_enabled: bool = False
+    email_sync_interval_seconds: int = Field(default=300, ge=30, le=86400)
     worker_poll_seconds: float = Field(default=2.0, gt=0)
     worker_max_attempts: int = Field(default=3, ge=1, le=10)
 

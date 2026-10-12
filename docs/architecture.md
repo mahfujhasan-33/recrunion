@@ -67,6 +67,13 @@ Human approval happens outside the graph.
 
 The assistant is a bounded orchestration layer, not a second implementation of job management. It calls existing services in-process. Requirements, current JD, enhancement proposal, evidence, publication state, and required actions are rendered from persisted state in a split-screen Jinja2/Vanilla JavaScript workspace. Approval and external publication are never executed by the graph; the recruiter must use explicit confirmation actions. Publishing intent is resolved by the assistant, then deterministic lifecycle rules and `JobPublishingService` control execution.
 
+The M7.5 product enhancement keeps those boundaries while adding Blogger as a second
+`PublisherAdapter` implementation and Gmail/Drive REST adapters. Gmail messages are routed only by
+a stable job application code and exact subject, then normalized through the existing application
+intake service. Local managed storage remains the canonical CV store; Drive is a non-blocking archive
+mirror. Provider transports never own business validation and email body text never enters an AI
+workflow.
+
 ### F1 Screening Graph
 `load persisted M5 profile/chunks -> retrieve relevant CV evidence -> evaluate requirements -> validate evidence -> persist`
 

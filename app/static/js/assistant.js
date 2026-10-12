@@ -145,10 +145,16 @@ function renderRequiredActions(actions) {
       const button = element(
         "button",
         "button compact",
-        retry ? "Confirm retry" : "Publish to Bluesky",
+        retry ? "Confirm retry" : "Publish job",
       );
       button.type = "button";
-      button.addEventListener("click", () => confirmPublication(retry));
+      button.addEventListener("click", () => confirmPublication(retry, action.provider));
+      card.append(button);
+    }
+    if (action.code === "FETCH_EMAIL_APPLICATIONS") {
+      const button = element("button", "button secondary compact", "Fetch applications");
+      button.type = "button";
+      button.addEventListener("click", () => sendMessage("Fetch email applications."));
       card.append(button);
     }
     container.append(card);
@@ -159,7 +165,7 @@ function renderPublication(publication) {
   if (!publication) return null;
   const card = element("article", "publication-summary");
   const heading = element("div", "card-heading");
-  heading.append(element("strong", "", `Bluesky attempt ${publication.attempt_number}`));
+  heading.append(element("strong", "", `${publication.provider} attempt ${publication.attempt_number}`));
   heading.append(
     element(
       "span",
@@ -177,7 +183,7 @@ function renderPublication(publication) {
     card.append(element("p", "", publication.error_message_safe));
   }
   if (publication.external_url) {
-    const link = element("a", "button secondary compact", "View Bluesky post");
+    const link = element("a", "button secondary compact", `View ${publication.provider}`);
     link.href = publication.external_url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
@@ -222,8 +228,19 @@ function renderDescription(workspace) {
     actions.append(approve);
     container.append(actions);
   }
-  const publication = renderPublication(workspace.publication);
-  if (publication) container.append(publication);
+  (workspace.publications || (workspace.publication ? [workspace.publication] : [])).forEach(
+    (item) => container.append(renderPublication(item)),
+  );
+  if (workspace.email_intake?.summary) {
+    const intake = workspace.email_intake.summary;
+    container.append(
+      element(
+        "p",
+        "hint",
+        `Email intake: ${intake.imported} imported · ${intake.duplicates} duplicates · ${intake.needs_review} need review`,
+      ),
+    );
+  }
   const proposal = workspace.proposal;
   if (proposal?.status === "PROPOSED") {
     const proposalCard = element("article", "proposal-card");
@@ -403,11 +420,11 @@ async function confirmApproval() {
   }
 }
 
-async function confirmPublication(retry) {
+async function confirmPublication(retry, provider = null) {
   const action = retry ? "retry publishing" : "publish";
   if (
     !window.confirm(
-      `Confirm that you want to ${action} this approved job on Bluesky? This is an external action.`,
+      `Confirm that you want to ${action} this approved job? This is an external action.`,
     )
   ) {
     return;
@@ -420,7 +437,11 @@ async function confirmPublication(retry) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmed: true }),
+        body: JSON.stringify(
+          retry
+            ? { confirmed: true, providers: provider ? [provider] : null }
+            : { confirmed: true, providers: ["BLOGGER", "BLUESKY"] },
+        ),
       },
     );
     activeTaskId = publication.processing_task_id;

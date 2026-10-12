@@ -43,6 +43,13 @@ class InvalidJobStatusError(RecrUnionError):
     status_code = 409
 
 
+class DeletionInProgressError(RecrUnionError):
+    """Raised when deleting an aggregate would race an active worker task."""
+
+    code = "DELETION_IN_PROGRESS"
+    status_code = 409
+
+
 class JobDescriptionValidationError(RecrUnionError):
     """Raised when job-description input or generated output is invalid."""
 
@@ -219,6 +226,76 @@ class PublisherInvalidResponseError(PublisherError):
 
 class PublisherUnavailableError(PublisherError):
     code = "PUBLISHER_UNAVAILABLE"
+
+
+class BloggerAuthenticationError(PublisherAuthenticationError):
+    code = "BLOGGER_AUTH_FAILED"
+
+
+class BloggerPublishingError(PublisherError):
+    code = "BLOGGER_PUBLISH_FAILED"
+
+
+class GmailError(RecrUnionError):
+    code = "GMAIL_UNAVAILABLE"
+    status_code = 502
+    retryable = True
+
+
+class GmailConfigurationError(GmailError):
+    code = "GMAIL_NOT_CONFIGURED"
+    status_code = 503
+    retryable = False
+
+
+class GmailAuthenticationError(GmailError):
+    code = "GMAIL_AUTH_FAILED"
+
+
+class GmailSearchError(GmailError):
+    code = "GMAIL_SEARCH_FAILED"
+
+
+class GmailAttachmentError(GmailError):
+    code = "GMAIL_ATTACHMENT_FAILED"
+
+
+class DriveError(RecrUnionError):
+    code = "DRIVE_UNAVAILABLE"
+    status_code = 502
+    retryable = True
+
+
+class DriveConfigurationError(DriveError):
+    code = "DRIVE_NOT_CONFIGURED"
+    status_code = 503
+    retryable = False
+
+
+class DriveAuthenticationError(DriveError):
+    code = "DRIVE_AUTH_FAILED"
+
+
+class DriveFolderError(DriveError):
+    code = "DRIVE_FOLDER_FAILED"
+
+
+class DriveArchiveError(DriveError):
+    code = "DRIVE_ARCHIVE_FAILED"
+
+
+class EmailIntakeStateError(RecrUnionError):
+    code = "EMAIL_INTAKE_STATE_INVALID"
+    status_code = 409
+    retryable = False
+
+
+class IntakeReceiptNotFoundError(RecrUnionError):
+    code = "INTAKE_RECEIPT_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Application intake receipt was not found.")
 
 
 class ApplicationNotFoundError(RecrUnionError):

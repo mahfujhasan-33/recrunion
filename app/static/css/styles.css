@@ -329,6 +329,15 @@ a {
   background: #dcefe9;
 }
 
+.button.danger {
+  color: #ffffff;
+  background: #9f2f2f;
+}
+
+.button.danger:hover {
+  background: #7d2020;
+}
+
 .card-grid,
 .detail-grid {
   display: grid;

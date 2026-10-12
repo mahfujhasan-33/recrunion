@@ -34,8 +34,12 @@ from app.schemas.assistant import (
     RequirementDraft,
 )
 from app.schemas.job_descriptions import JobDescriptionUpdateRequest
-from app.schemas.job_publications import JobPublicationResponse
+from app.schemas.job_publications import (
+    JobPublicationBatchResponse,
+    PublicationProvider,
+)
 from app.schemas.jobs import JobResponse, JobWriteRequest
+from app.services.email_intake import EmailApplicationIntakeService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publications import JobPublishingService
 from app.services.jobs import JobService
@@ -55,6 +59,7 @@ class AssistantService:
         description_service: JobDescriptionService,
         policy_service: PolicyReviewService,
         publishing_service: JobPublishingService,
+        email_intake_service: EmailApplicationIntakeService,
         assistant_graph: RecruiterAssistantGraph,
         *,
         worker_max_attempts: int,
@@ -65,6 +70,7 @@ class AssistantService:
         self._description_service = description_service
         self._policy_service = policy_service
         self._publishing_service = publishing_service
+        self._email_intake_service = email_intake_service
         self._assistant_graph = assistant_graph
         self._worker_max_attempts = worker_max_attempts
 
@@ -188,6 +194,10 @@ class AssistantService:
             response = self._publication_guidance(conversation, retry=True)
         elif plan.intent == AssistantIntent.GET_PUBLICATION_STATUS:
             response = self._publication_status(conversation)
+        elif plan.intent == AssistantIntent.FETCH_EMAIL_APPLICATIONS:
+            response = self._fetch_email_applications(conversation)
+        elif plan.intent == AssistantIntent.GET_EMAIL_INTAKE_STATUS:
+            response = self._email_intake_status(conversation)
         report(95, "Preparing the workspace")
         self._repository.add_message(
             AssistantMessage(
@@ -293,16 +303,23 @@ class AssistantService:
         confirmed: bool,
         *,
         retry: bool,
-    ) -> JobPublicationResponse:
+        providers: list[PublicationProvider] | None = None,
+    ) -> JobPublicationBatchResponse:
         conversation = self._get_conversation(conversation_id)
         if not confirmed or conversation.active_job_id is None:
             raise AssistantActionError(
                 "Explicit confirmation is required to publish a job externally."
             )
         publication = (
-            self._publishing_service.retry(conversation.active_job_id)
+            self._publishing_service.retry(
+                conversation.active_job_id,
+                providers[0] if providers else None,
+            )
             if retry
-            else self._publishing_service.publish(conversation.active_job_id)
+            else self._publishing_service.publish(
+                conversation.active_job_id,
+                providers,
+            )
         )
         action = "retry" if retry else "publication"
         self._repository.add_message(
@@ -310,7 +327,7 @@ class AssistantService:
                 conversation_id=conversation.id,
                 role=AssistantMessageRole.ASSISTANT,
                 content=(
-                    f"The Bluesky {action} is queued. I will show progress and update "
+                    f"The external {action} is queued. I will show progress and update "
                     "the workspace when it finishes."
                 ),
             )
@@ -427,6 +444,8 @@ class AssistantService:
         )
         review = self._policy_service.get_latest(job.id) if job and job.jd_content else None
         publication = self._publishing_service.get_latest(job.id) if job else None
+        publications = self._publishing_service.list_latest(job.id) if job else []
+        email_intake = self._email_intake_service.status(job.id) if job else None
         actions: list[AssistantRequiredAction] = []
         draft = self._requirements_from_artifact(requirements)
         missing = self._missing_fields(draft)
@@ -470,12 +489,12 @@ class AssistantService:
             actions.append(
                 AssistantRequiredAction(
                     code="PUBLISH_JOB",
-                    label="Publish to Bluesky",
+                    label="Publish job",
                     severity="CONFIRMATION_REQUIRED",
                     message=(
                         f"{job.code} · {job.title} · approved JD version {job.jd_version}. "
-                        "The policy review is current. Target: Bluesky. Publishing creates "
-                        "an external post and requires confirmation."
+                        "The policy review is current. Targets: Blogger and Bluesky. "
+                        "Publishing creates external posts and requires confirmation."
                     ),
                 )
             )
@@ -488,16 +507,28 @@ class AssistantService:
                     message="A publication attempt is already in progress.",
                 )
             )
-        elif job and job.status == JobStatus.PUBLISH_FAILED:
+        for failed_publication in (item for item in publications if item.status.value == "FAILED"):
             actions.append(
                 AssistantRequiredAction(
                     code="RETRY_JOB_PUBLICATION",
-                    label="Retry Bluesky publication",
+                    label=f"Retry {failed_publication.provider.title()} publication",
                     severity="CONFIRMATION_REQUIRED",
                     message=(
-                        publication.error_message_safe
-                        if publication and publication.error_message_safe
-                        else "The last publication failed. An explicit retry is available."
+                        failed_publication.error_message_safe
+                        or "This channel failed. An explicit provider-specific retry is available."
+                    ),
+                    provider=failed_publication.provider,
+                )
+            )
+        if job:
+            actions.append(
+                AssistantRequiredAction(
+                    code="FETCH_EMAIL_APPLICATIONS",
+                    label="Fetch email applications",
+                    severity="READY",
+                    message=(
+                        f"Use exact subject [{job.application_code}] Application. "
+                        "Only PDF attachments enter the deterministic intake workflow."
                     ),
                 )
             )
@@ -508,6 +539,8 @@ class AssistantService:
             job=job,
             policy_review=review,
             publication=publication,
+            publications=publications,
+            email_intake=email_intake,
             required_actions=actions,
         )
 
@@ -532,9 +565,9 @@ class AssistantService:
             )
         if job.status == JobStatus.APPROVED:
             if retry:
-                return "This job has not failed publication. Use Publish to Bluesky instead."
+                return "This job has not failed publication. Use Publish job instead."
             return (
-                f"{job.code} is approved and ready to publish to Bluesky. Review the target "
+                f"{job.code} is approved and ready to publish. Review the target channels "
                 "and approved JD version in the workspace, then confirm publication."
             )
         if job.status == JobStatus.PUBLISHING:
@@ -544,7 +577,7 @@ class AssistantService:
         if job.status == JobStatus.PUBLISH_FAILED:
             if retry:
                 return (
-                    "The last Bluesky publication failed. Review the safe failure message in "
+                    "The last publication failed. Review the safe failure message in "
                     "the workspace, then explicitly confirm the retry."
                 )
             return "The last publication failed. Use the explicit Retry Publishing action."
@@ -554,20 +587,39 @@ class AssistantService:
         if conversation.active_job_id is None:
             return "There is no active job publication to report."
         job = self._job_service.get_job(conversation.active_job_id)
-        publication = self._publishing_service.get_latest(job.id)
-        if publication is None:
+        publications = self._publishing_service.list_latest(job.id)
+        if not publications:
             return f"{job.code} has not been submitted for publication."
-        if job.status == JobStatus.PUBLISHED:
-            destination = (
-                f" View it at {publication.external_url}." if publication.external_url else ""
-            )
-            return f"{job.code} is published on Bluesky.{destination}"
-        if job.status == JobStatus.PUBLISH_FAILED:
-            safe_detail = publication.error_message_safe or "No safe detail is available."
-            return (
-                f"The Bluesky publication failed: {safe_detail} You can request an explicit retry."
-            )
-        return f"The Bluesky publication is {publication.status.value.lower()}."
+        details = "; ".join(
+            f"{item.provider.title()}: {item.status.value.lower()}"
+            + (f" ({item.external_url})" if item.external_url else "")
+            for item in publications
+        )
+        return f"{job.code} publication status — {details}."
+
+    def _fetch_email_applications(self, conversation: AssistantConversation) -> str:
+        if conversation.active_job_id is None:
+            return "There is no active job to use for application email intake."
+        task = self._email_intake_service.queue(conversation.active_job_id)
+        return (
+            "The application mailbox fetch is queued for the active job. "
+            f"Task {task.task_id} will use the job's exact application subject."
+        )
+
+    def _email_intake_status(self, conversation: AssistantConversation) -> str:
+        if conversation.active_job_id is None:
+            return "There is no active job email intake to report."
+        status = self._email_intake_service.status(conversation.active_job_id)
+        if status.task_id is None:
+            return "Email application intake has not run for the active job."
+        summary = status.summary
+        if summary is None:
+            return f"Email application intake is {status.task_status.value.lower()}."
+        return (
+            f"Email intake matched {summary.matched} message(s), imported "
+            f"{summary.imported}, skipped {summary.duplicates} duplicate(s), and has "
+            f"{summary.needs_review} item(s) needing review."
+        )
 
     def _get_conversation(self, conversation_id: UUID) -> AssistantConversation:
         conversation = self._repository.get_conversation(conversation_id)

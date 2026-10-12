@@ -97,6 +97,11 @@ class FakeLLMAdapter:
                 intent=AssistantIntent.GET_PUBLICATION_STATUS,
                 response_message="I will check the publication status.",
             )
+        if "fetch" in message and "application" in message:
+            return AssistantTurnPlan(
+                intent=AssistantIntent.FETCH_EMAIL_APPLICATIONS,
+                response_message="I will fetch applications for the active job.",
+            )
         if "generate" in message:
             return AssistantTurnPlan(
                 intent=AssistantIntent.GENERATE_DESCRIPTION,

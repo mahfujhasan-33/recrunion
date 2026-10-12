@@ -74,7 +74,10 @@ class ApplicationIntakeService:
         uploads: list[IncomingCandidateDocument],
     ) -> ApplicationBatchUploadResponse:
         job = self._get_job(job_id)
-        results = [self._process_file(job, upload) for upload in uploads]
+        results = [
+            self.intake_document(job, upload, source=ApplicationSource.MANUAL_UPLOAD)
+            for upload in uploads
+        ]
         return ApplicationBatchUploadResponse(
             received=len(results),
             imported=self._count(results, ApplicationUploadOutcome.IMPORTED),
@@ -98,11 +101,14 @@ class ApplicationIntakeService:
             raise ApplicationNotFoundError
         return self.to_detail_response(application)
 
-    def _process_file(
+    def intake_document(
         self,
         job: Job,
         upload: IncomingCandidateDocument,
+        *,
+        source: ApplicationSource,
     ) -> ApplicationUploadFileResult:
+        job_id = job.id
         display_filename = "Unnamed PDF"
         try:
             display_filename = _safe_filename(upload.filename)
@@ -116,7 +122,7 @@ class ApplicationIntakeService:
                     outcome=ApplicationUploadOutcome.SKIPPED_DUPLICATE,
                     message="This CV has already been uploaded for this job.",
                 )
-            application = self._persist(job, display_filename, content, sha256)
+            application = self._persist(job, display_filename, content, sha256, source)
             return ApplicationUploadFileResult(
                 filename=display_filename,
                 outcome=ApplicationUploadOutcome.IMPORTED,
@@ -138,7 +144,7 @@ class ApplicationIntakeService:
         except Exception:
             logger.warning(
                 "Candidate CV import failed",
-                extra={"job_id": str(job.id), "operation": "candidate_cv_import"},
+                extra={"job_id": str(job_id), "operation": "candidate_cv_import"},
             )
             return ApplicationUploadFileResult(
                 filename=display_filename,
@@ -178,6 +184,7 @@ class ApplicationIntakeService:
         original_filename: str,
         content: bytes,
         sha256: str,
+        source: ApplicationSource,
     ) -> JobApplication:
         stored: StoredDocument | None = None
         try:
@@ -194,7 +201,7 @@ class ApplicationIntakeService:
                 id=application_id,
                 job_id=job.id,
                 candidate_id=candidate.id,
-                source=ApplicationSource.MANUAL_UPLOAD,
+                source=source,
                 status=ApplicationStatus.IMPORTED,
             )
             document = CandidateDocument(
@@ -228,6 +235,7 @@ class ApplicationIntakeService:
     def to_response(application: JobApplication) -> ApplicationResponse:
         return ApplicationResponse(
             id=application.id,
+            document_id=application.document.id,
             reference=f"APP-{application.id.hex[:8].upper()}",
             candidate_id=application.candidate.id,
             candidate_display_reference=application.candidate.display_reference,

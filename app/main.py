@@ -15,6 +15,7 @@ from app.routers import (
     assistant_web,
     company_documents_api,
     company_documents_web,
+    email_intake_api,
     health,
     home,
     job_publications_api,
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     application.include_router(home.router)
     application.include_router(applications_web.router)
+    application.include_router(email_intake_api.router)
     application.include_router(applications_api.router)
     application.include_router(screening_api.router)
     application.include_router(scoring_api.router)

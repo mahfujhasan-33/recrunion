@@ -41,6 +41,7 @@ class JobWriteRequest(BaseModel):
 class JobResponse(JobWriteRequest):
     id: UUID
     code: str
+    application_code: str
     status: JobStatus
     jd_generated_content: str | None
     jd_content: str | None

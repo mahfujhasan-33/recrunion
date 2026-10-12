@@ -23,6 +23,7 @@ from app.database import Base
 
 class ApplicationSource(StrEnum):
     MANUAL_UPLOAD = "MANUAL_UPLOAD"
+    EMAIL = "EMAIL"
 
 
 class ApplicationStatus(StrEnum):
@@ -36,6 +37,26 @@ class CandidateDocumentProcessingStatus(StrEnum):
     READY = "READY"
     NEEDS_REVIEW = "NEEDS_REVIEW"
     FAILED = "FAILED"
+
+
+class IntakeReceiptStatus(StrEnum):
+    RECEIVED = "RECEIVED"
+    IMPORTED = "IMPORTED"
+    SKIPPED_DUPLICATE = "SKIPPED_DUPLICATE"
+    NO_CV_ATTACHMENT = "NO_CV_ATTACHMENT"
+    MULTIPLE_PDF_ATTACHMENTS = "MULTIPLE_PDF_ATTACHMENTS"
+    UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
+    INVALID_PDF = "INVALID_PDF"
+    OVERSIZED_FILE = "OVERSIZED_FILE"
+    ATTACHMENT_FETCH_FAILED = "ATTACHMENT_FETCH_FAILED"
+    FAILED = "FAILED"
+
+
+class DriveArchiveStatus(StrEnum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    ARCHIVED = "ARCHIVED"
+    RETRY_PENDING = "RETRY_PENDING"
 
 
 class Candidate(Base):
@@ -228,3 +249,75 @@ class CandidateProfile(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     source_document: Mapped[CandidateDocument] = relationship(back_populates="profile")
+
+
+class ApplicationIntakeReceipt(Base):
+    __tablename__ = "application_intake_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "external_message_id",
+            name="uq_intake_receipt_source_message",
+        ),
+        Index("ix_intake_receipts_job_created", "job_id", "created_at"),
+        Index("ix_intake_receipts_task_id", "processing_task_id"),
+        Index("ix_intake_receipts_archive_status", "archive_status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    processing_task_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("processing_jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    source_type: Mapped[ApplicationSource] = mapped_column(
+        Enum(
+            ApplicationSource,
+            name="intake_receipt_source",
+            native_enum=False,
+            create_constraint=False,
+            length=50,
+        ),
+        nullable=False,
+    )
+    external_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_attachment_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[IntakeReceiptStatus] = mapped_column(
+        Enum(
+            IntakeReceiptStatus,
+            name="intake_receipt_status",
+            native_enum=False,
+            create_constraint=True,
+        ),
+        nullable=False,
+        default=IntakeReceiptStatus.RECEIVED,
+        server_default=IntakeReceiptStatus.RECEIVED.value,
+    )
+    candidate_document_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="SET NULL"), nullable=True
+    )
+    drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    drive_file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    archive_status: Mapped[DriveArchiveStatus] = mapped_column(
+        Enum(
+            DriveArchiveStatus,
+            name="drive_archive_status",
+            native_enum=False,
+            create_constraint=True,
+        ),
+        nullable=False,
+        default=DriveArchiveStatus.NOT_REQUIRED,
+        server_default=DriveArchiveStatus.NOT_REQUIRED.value,
+    )
+    safe_error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    safe_error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )

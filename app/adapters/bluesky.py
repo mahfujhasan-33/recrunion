@@ -69,7 +69,7 @@ class BlueskyPublisher:
                         "collection": "app.bsky.feed.post",
                         "record": {
                             "$type": "app.bsky.feed.post",
-                            "text": content.text,
+                            "text": content.short_text,
                             "createdAt": content.created_at.isoformat().replace("+00:00", "Z"),
                         },
                     },

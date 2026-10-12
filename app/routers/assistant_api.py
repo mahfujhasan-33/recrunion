@@ -11,7 +11,7 @@ from app.schemas.assistant import (
     AssistantMessageCreate,
     AssistantTurnQueuedResponse,
 )
-from app.schemas.job_publications import JobPublicationResponse, PublicationConfirmationRequest
+from app.schemas.job_publications import JobPublicationBatchResponse, PublicationConfirmationRequest
 from app.services.assistant import AssistantService
 
 router = APIRouter(prefix="/api/v1/assistant", tags=["recruiter assistant"])
@@ -91,33 +91,35 @@ def confirm_approval(
 
 @router.post(
     "/conversations/{conversation_id}/publish",
-    response_model=JobPublicationResponse,
+    response_model=JobPublicationBatchResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
 def confirm_publication(
     conversation_id: UUID,
     request: PublicationConfirmationRequest,
     service: AssistantServiceDependency,
-) -> JobPublicationResponse:
+) -> JobPublicationBatchResponse:
     return service.confirm_publication(
         conversation_id,
         request.confirmed,
         retry=False,
+        providers=request.providers,
     )
 
 
 @router.post(
     "/conversations/{conversation_id}/publication/retry",
-    response_model=JobPublicationResponse,
+    response_model=JobPublicationBatchResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
 def confirm_publication_retry(
     conversation_id: UUID,
     request: PublicationConfirmationRequest,
     service: AssistantServiceDependency,
-) -> JobPublicationResponse:
+) -> JobPublicationBatchResponse:
     return service.confirm_publication(
         conversation_id,
         request.confirmed,
         retry=True,
+        providers=request.providers,
     )

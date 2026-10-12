@@ -53,6 +53,7 @@ async function submitJob(event) {
 
 async function requestJobAction(endpoint, options = {}) {
   const response = await fetch(endpoint, options);
+  if (response.status === 204) return null;
   const body = await response.json();
 
   if (!response.ok) {
@@ -182,9 +183,18 @@ async function pollPublicationTask(taskId) {
 async function queuePublication(button, endpoint, confirmation) {
   if (!window.confirm(confirmation)) return;
   button.disabled = true;
-  setActionFeedback("Queueing Bluesky publication…", false, "#publication-feedback");
+  setActionFeedback("Queueing selected publication channels…", false, "#publication-feedback");
   try {
-    const publication = await requestJobAction(endpoint, { method: "POST" });
+    const options = { method: "POST" };
+    if (endpoint.endsWith("/publish")) {
+      const providers = [...document.querySelectorAll("#publication-providers input:checked")].map(
+        (input) => input.value,
+      );
+      if (!providers.length) throw new Error("Select at least one publication channel.");
+      options.headers = { "Content-Type": "application/json" };
+      options.body = JSON.stringify({ providers });
+    }
+    const publication = await requestJobAction(endpoint, options);
     window.location.reload();
     pollPublicationTask(publication.processing_task_id);
   } catch (error) {
@@ -199,23 +209,44 @@ if (publishButton && jobId) {
     queuePublication(
       publishButton,
       `/api/v1/jobs/${jobId}/publish`,
-      "Publish this approved job to Bluesky? This creates an external post.",
+      "Publish this approved job to the selected channels? This creates external posts.",
     ),
   );
 }
 
-const retryPublicationButton = document.querySelector("#retry-publication");
-if (retryPublicationButton && jobId) {
-  retryPublicationButton.addEventListener("click", () =>
+document.querySelectorAll("[data-retry-provider]").forEach((retryPublicationButton) => {
+  if (jobId) retryPublicationButton.addEventListener("click", () =>
     queuePublication(
       retryPublicationButton,
-      `/api/v1/jobs/${jobId}/publication/retry`,
-      "Retry publishing this approved job to Bluesky? This may create an external post.",
+      `/api/v1/jobs/${jobId}/publication/${retryPublicationButton.dataset.retryProvider}/retry`,
+      `Retry publishing this approved job to ${retryPublicationButton.dataset.retryProvider}?`,
     ),
   );
-}
+});
 
 const publicationCard = document.querySelector(".publication-card");
 if (publicationCard?.dataset.publicationTaskId && document.querySelector("#publication-progress")) {
   pollPublicationTask(publicationCard.dataset.publicationTaskId);
 }
+
+document.querySelectorAll("[data-delete-job-id]").forEach((deleteButton) => {
+  deleteButton.addEventListener("click", async () => {
+    const title = deleteButton.dataset.jobTitle || "this job";
+    const confirmed = window.confirm(
+      `Delete “${title}” and all of its locally stored applications, CVs, candidate ` +
+        "profiles, evidence, screenings, and scores? This cannot be undone. Existing " +
+        "Blogger/Bluesky posts and Drive archive copies are not removed.",
+    );
+    if (!confirmed) return;
+    deleteButton.disabled = true;
+    try {
+      await requestJobAction(`/api/v1/jobs/${deleteButton.dataset.deleteJobId}`, {
+        method: "DELETE",
+      });
+      window.location.assign("/jobs");
+    } catch (error) {
+      window.alert(error.message);
+      deleteButton.disabled = false;
+    }
+  });
+});

@@ -28,6 +28,23 @@
     <div id="application-feedback" class="form-error" role="status" hidden></div>
   </form>
 
+  <section class="detail-card" id="email-intake-card" data-job-id="{{ job.id }}">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Automated intake</p>
+        <h2>Email applications</h2>
+        <p>Ask candidates to send one PDF attachment with the exact subject <code>[{{ job.application_code }}] Application</code>.</p>
+      </div>
+      <button id="fetch-email-applications" class="button secondary" type="button">Fetch applications</button>
+    </div>
+    <div id="email-sync-progress" class="assistant-progress" hidden>
+      <div class="progress-copy"><span id="email-sync-message">Email sync queued</span><strong id="email-sync-percentage">0%</strong></div>
+      <progress id="email-sync-progress-bar" max="100" value="0"></progress>
+    </div>
+    <p id="email-sync-summary" class="hint">No email synchronization has run for this job.</p>
+    <div id="email-sync-feedback" class="form-error" role="status" hidden></div>
+  </section>
+
   <section id="application-upload-summary" class="detail-card" hidden>
     <h2>Upload complete</h2>
     <div class="detail-grid">
@@ -84,6 +101,7 @@
                 {% else %}
                   <span class="hint">Task in progress</span>
                 {% endif %}
+                <button class="button danger compact" type="button" data-delete-application-id="{{ application.id }}">Delete</button>
               </td>
             </tr>
           {% else %}
@@ -212,7 +230,7 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="/static/js/applications.js?v=20261008-m6-1" defer></script>
+  <script src="/static/js/applications.js?v=20261012-deletion-1" defer></script>
   <script src="/static/js/screening.js?v=20261008-m6-2" defer></script>
   <script src="/static/js/scoring.js?v=20261009-m7-1" defer></script>
 {% endblock %}

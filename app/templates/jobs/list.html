@@ -22,6 +22,15 @@
           <h2><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h2>
           <p>{{ job.location }} · {{ job.employment_type.value | replace('_', ' ') | title }}</p>
           <p>{{ job.required_skills | length }} required skill(s)</p>
+          <div class="actions">
+            <a class="button secondary compact" href="/jobs/{{ job.id }}">Open</a>
+            <button
+              class="button danger compact"
+              type="button"
+              data-delete-job-id="{{ job.id }}"
+              data-job-title="{{ job.title }}"
+            >Delete</button>
+          </div>
         </article>
       {% endfor %}
     </div>
@@ -32,4 +41,8 @@
       <a class="button" href="/jobs/new">Create job</a>
     </section>
   {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/jobs.js?v=20261012-deletion-1" defer></script>
 {% endblock %}

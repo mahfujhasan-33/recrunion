@@ -37,6 +37,26 @@ class JobPublicationRepository:
         )
         return self._session.scalar(statement)
 
+    def list_for_task(self, task_id: UUID) -> list[JobPublication]:
+        statement = (
+            select(JobPublication)
+            .where(JobPublication.processing_task_id == task_id)
+            .options(selectinload(JobPublication.job).selectinload(Job.requirements))
+            .order_by(JobPublication.created_at, JobPublication.provider)
+        )
+        return list(self._session.scalars(statement))
+
+    def list_for_job(self, job_id: UUID) -> list[JobPublication]:
+        statement = (
+            select(JobPublication)
+            .where(JobPublication.job_id == job_id)
+            .order_by(
+                JobPublication.provider,
+                JobPublication.attempt_number.desc(),
+            )
+        )
+        return list(self._session.scalars(statement))
+
     def latest_for_job(self, job_id: UUID) -> JobPublication | None:
         statement = (
             select(JobPublication)
@@ -46,22 +66,36 @@ class JobPublicationRepository:
         )
         return self._session.scalar(statement)
 
-    def next_attempt_number(self, job_id: UUID) -> int:
+    def latest_for_provider(self, job_id: UUID, provider: str) -> JobPublication | None:
+        statement = (
+            select(JobPublication)
+            .where(
+                JobPublication.job_id == job_id,
+                JobPublication.provider == provider,
+            )
+            .order_by(JobPublication.attempt_number.desc())
+            .limit(1)
+        )
+        return self._session.scalar(statement)
+
+    def next_attempt_number(self, job_id: UUID, provider: str) -> int:
         statement = select(func.max(JobPublication.attempt_number)).where(
-            JobPublication.job_id == job_id
+            JobPublication.job_id == job_id,
+            JobPublication.provider == provider,
         )
         return int(self._session.scalar(statement) or 0) + 1
 
-    def create_attempt(
+    def create_attempts(
         self,
         job: Job,
-        publication: JobPublication,
+        publications: list[JobPublication],
         task: ProcessingJob,
-    ) -> JobPublication:
+    ) -> list[JobPublication]:
         job.status = JobStatus.PUBLISHING
-        self._session.add_all([publication, task])
+        self._session.add(task)
+        self._session.add_all(publications)
         self._commit()
-        return publication
+        return publications
 
     def mark_publishing(self, publication: JobPublication) -> None:
         publication.status = PublicationStatus.PUBLISHING
@@ -79,7 +113,6 @@ class JobPublicationRepository:
         publication.published_at = result.published_at
         publication.error_code = None
         publication.error_message_safe = None
-        publication.job.status = JobStatus.PUBLISHED
         self._commit()
         return publication
 
@@ -93,9 +126,21 @@ class JobPublicationRepository:
         publication.status = PublicationStatus.FAILED
         publication.error_code = code
         publication.error_message_safe = message
-        publication.job.status = JobStatus.PUBLISH_FAILED
         self._commit()
         return publication
+
+    def finalize_job_status(self, job: Job) -> None:
+        publications = self.list_for_job(job.id)
+        if any(item.status == PublicationStatus.PUBLISHED for item in publications):
+            job.status = JobStatus.PUBLISHED
+        elif any(
+            item.status in {PublicationStatus.QUEUED, PublicationStatus.PUBLISHING}
+            for item in publications
+        ):
+            job.status = JobStatus.PUBLISHING
+        else:
+            job.status = JobStatus.PUBLISH_FAILED
+        self._commit()
 
     def _commit(self) -> None:
         try:

@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.dependencies import (
+    get_deletion_service,
     get_job_description_service,
     get_job_service,
     get_policy_review_service,
@@ -11,6 +12,7 @@ from app.dependencies import (
 from app.schemas.job_descriptions import JobDescriptionUpdateRequest
 from app.schemas.jobs import JobResponse, JobWriteRequest
 from app.schemas.policy_findings import PolicyReviewResponse
+from app.services.deletions import DeletionService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.jobs import JobService
 from app.services.policy_reviews import PolicyReviewService
@@ -25,6 +27,7 @@ PolicyReviewServiceDependency = Annotated[
     PolicyReviewService,
     Depends(get_policy_review_service),
 ]
+DeletionServiceDependency = Annotated[DeletionService, Depends(get_deletion_service)]
 
 
 @router.post("", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
@@ -49,6 +52,11 @@ def update_job(
     service: JobServiceDependency,
 ) -> JobResponse:
     return service.update_job(job_id, request)
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_job(job_id: UUID, service: DeletionServiceDependency) -> None:
+    service.delete_job(job_id)
 
 
 @router.post("/{job_id}/generate-description", response_model=JobResponse)
