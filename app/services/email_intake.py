@@ -166,6 +166,11 @@ class EmailApplicationIntakeService:
         receipt = self._repository.find_message(message.message_id)
         if receipt is not None:
             receipt.processing_task_id = task_id
+            if message.sender_email and receipt.candidate_document_id:
+                self._repository.set_application_contact_email_for_document_if_missing(
+                    receipt.candidate_document_id,
+                    message.sender_email,
+                )
             if receipt.archive_status == DriveArchiveStatus.RETRY_PENDING:
                 self._repository.update_receipt(receipt)
                 with suppress(DriveError):
@@ -216,6 +221,7 @@ class EmailApplicationIntakeService:
                     job,
                     IncomingCandidateDocument(pdf.filename, pdf.mime_type, BytesIO(pdf.content)),
                     source=ApplicationSource.EMAIL,
+                    contact_email=message.sender_email,
                 )
                 if result.outcome == ApplicationUploadOutcome.IMPORTED and result.application:
                     receipt.status = IntakeReceiptStatus.IMPORTED

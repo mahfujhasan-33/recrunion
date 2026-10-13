@@ -112,6 +112,7 @@ class JobApplication(Base):
         default=ApplicationStatus.IMPORTED,
         server_default=ApplicationStatus.IMPORTED.value,
     )
+    contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

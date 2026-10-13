@@ -107,6 +107,7 @@ class ApplicationIntakeService:
         upload: IncomingCandidateDocument,
         *,
         source: ApplicationSource,
+        contact_email: str | None = None,
     ) -> ApplicationUploadFileResult:
         job_id = job.id
         display_filename = "Unnamed PDF"
@@ -122,7 +123,14 @@ class ApplicationIntakeService:
                     outcome=ApplicationUploadOutcome.SKIPPED_DUPLICATE,
                     message="This CV has already been uploaded for this job.",
                 )
-            application = self._persist(job, display_filename, content, sha256, source)
+            application = self._persist(
+                job,
+                display_filename,
+                content,
+                sha256,
+                source,
+                contact_email,
+            )
             return ApplicationUploadFileResult(
                 filename=display_filename,
                 outcome=ApplicationUploadOutcome.IMPORTED,
@@ -185,6 +193,7 @@ class ApplicationIntakeService:
         content: bytes,
         sha256: str,
         source: ApplicationSource,
+        contact_email: str | None,
     ) -> JobApplication:
         stored: StoredDocument | None = None
         try:
@@ -203,6 +212,7 @@ class ApplicationIntakeService:
                 candidate_id=candidate.id,
                 source=source,
                 status=ApplicationStatus.IMPORTED,
+                contact_email=contact_email,
             )
             document = CandidateDocument(
                 application_id=application.id,

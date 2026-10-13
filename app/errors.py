@@ -260,6 +260,33 @@ class GmailAttachmentError(GmailError):
     code = "GMAIL_ATTACHMENT_FAILED"
 
 
+class GmailSendError(GmailError):
+    code = "GMAIL_SEND_FAILED"
+
+
+class InterviewNotFoundError(RecrUnionError):
+    code = "INTERVIEW_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("Interview was not found.")
+
+
+class InterviewSchedulingError(RecrUnionError):
+    code = "INTERVIEW_SCHEDULE_INVALID"
+    status_code = 422
+
+
+class InterviewAlreadyScheduledError(RecrUnionError):
+    code = "INTERVIEW_ALREADY_SCHEDULED"
+    status_code = 409
+
+
+class InterviewConfigurationError(RecrUnionError):
+    code = "INTERVIEW_NOT_CONFIGURED"
+    status_code = 503
+
+
 class DriveError(RecrUnionError):
     code = "DRIVE_UNAVAILABLE"
     status_code = 502

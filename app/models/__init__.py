@@ -27,6 +27,7 @@ from app.models.company_documents import (
     CompanyDocumentStatus,
     CompanyDocumentType,
 )
+from app.models.interviews import InterviewSession, InterviewStatus, InvitationStatus
 from app.models.job_policy import (
     JobDescriptionPolicyFinding,
     JobDescriptionPolicyReview,
@@ -80,6 +81,9 @@ __all__ = [
     "EmploymentType",
     "EvidenceCoverage",
     "IntakeReceiptStatus",
+    "InterviewSession",
+    "InterviewStatus",
+    "InvitationStatus",
     "Job",
     "JobApplication",
     "JobDescriptionPolicyFinding",

@@ -6,6 +6,47 @@
   line-height: 1.5;
 }
 
+.interview-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.candidate-interview-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: #eef4f7;
+}
+
+.candidate-interview-shell {
+  width: min(42rem, 100%);
+}
+
+.candidate-interview-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.candidate-interview-details div {
+  padding: 1rem;
+  border: 1px solid #d8e2e8;
+  border-radius: 0.5rem;
+}
+
+.candidate-interview-details dt {
+  color: #52616b;
+  font-size: 0.85rem;
+}
+
+.candidate-interview-details dd {
+  margin: 0.35rem 0 0;
+  font-weight: 600;
+}
+
 body {
   min-height: 100vh;
   margin: 0;

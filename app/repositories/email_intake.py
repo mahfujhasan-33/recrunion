@@ -37,6 +37,20 @@ class EmailIntakeRepository:
         self._commit()
         return receipt
 
+    def set_application_contact_email_for_document_if_missing(
+        self,
+        document_id: UUID,
+        contact_email: str,
+    ) -> None:
+        document = self._session.scalar(
+            select(CandidateDocument)
+            .where(CandidateDocument.id == document_id)
+            .options(selectinload(CandidateDocument.application))
+        )
+        if document is not None and document.application.contact_email is None:
+            document.application.contact_email = contact_email
+            self._commit()
+
     def get_receipt(self, receipt_id: UUID) -> ApplicationIntakeReceipt | None:
         return self._session.get(ApplicationIntakeReceipt, receipt_id)
 

@@ -18,6 +18,8 @@ from app.routers import (
     email_intake_api,
     health,
     home,
+    interviews_api,
+    interviews_web,
     job_publications_api,
     jobs_api,
     jobs_web,
@@ -29,6 +31,19 @@ from app.routers import (
 STATIC_DIRECTORY = Path(__file__).parent / "static"
 
 
+class CandidateJoinTokenRedactionFilter(logging.Filter):
+    """Redact capability tokens from Uvicorn access-log request paths."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 3:
+            path = record.args[2]
+            if isinstance(path, str) and path.startswith("/interviews/join/"):
+                args = list(record.args)
+                args[2] = "/interviews/join/[REDACTED]"
+                record.args = tuple(args)
+        return True
+
+
 def configure_logging() -> None:
     """Configure process logging from environment settings."""
 
@@ -36,6 +51,11 @@ def configure_logging() -> None:
         level=get_settings().log_level.upper(),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(
+        isinstance(item, CandidateJoinTokenRedactionFilter) for item in access_logger.filters
+    ):
+        access_logger.addFilter(CandidateJoinTokenRedactionFilter())
 
 
 def create_app() -> FastAPI:
@@ -46,8 +66,10 @@ def create_app() -> FastAPI:
     application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     application.include_router(home.router)
     application.include_router(applications_web.router)
+    application.include_router(interviews_web.router)
     application.include_router(email_intake_api.router)
     application.include_router(applications_api.router)
+    application.include_router(interviews_api.router)
     application.include_router(screening_api.router)
     application.include_router(scoring_api.router)
     application.include_router(assistant_web.router)

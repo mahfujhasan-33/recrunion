@@ -15,6 +15,7 @@ from app.models.applications import (
     JobApplication,
 )
 from app.models.assistant import AssistantArtifact, AssistantConversation, AssistantMessage
+from app.models.interviews import InterviewSession
 from app.models.job_policy import JobDescriptionPolicyFinding, JobDescriptionPolicyReview
 from app.models.job_publications import JobPublication, PublicationStatus
 from app.models.jobs import Job, JobRequirement
@@ -331,6 +332,9 @@ class DeletionRepository:
             )
         self._execute(
             delete(CandidateScore).where(CandidateScore.application_id.in_(application_ids))
+        )
+        self._execute(
+            delete(InterviewSession).where(InterviewSession.application_id.in_(application_ids))
         )
         if screening_ids:
             self._execute(

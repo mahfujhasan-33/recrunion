@@ -227,10 +227,68 @@
     </div>
     <div id="candidate-score-content"></div>
   </section>
+
+  <section id="interview-scheduling-panel" class="detail-card" hidden>
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Human recruiter decision</p>
+        <h2>Schedule interview</h2>
+      </div>
+      <button id="close-interview-scheduling" class="button secondary compact" type="button">Cancel</button>
+    </div>
+    <p>Scheduling <strong id="interview-candidate-reference">candidate</strong>. Match Rank and Suitability Score are decision support only; this explicit submission selects the candidate for interview.</p>
+    <form id="interview-scheduling-form" class="form-card interview-schedule-grid" data-job-id="{{ job.id }}">
+      <label>Interview email
+        <input id="interview-invitation-email" name="invitation_email" type="email" autocomplete="email" maxlength="320" required>
+        <span class="hint">Source: <span id="interview-email-source">Not available</span>. Review and edit this address before scheduling.</span>
+      </label>
+      <label>Date and time
+        <input name="scheduled_start_local" type="datetime-local" required>
+      </label>
+      <label>Timezone
+        <input name="timezone" type="text" list="interview-timezones" required>
+        <datalist id="interview-timezones">
+          <option value="Asia/Dhaka"></option>
+          <option value="UTC"></option>
+          <option value="Europe/London"></option>
+          <option value="America/New_York"></option>
+        </datalist>
+      </label>
+      <label>Duration (minutes)
+        <input name="duration_minutes" type="number" min="15" max="240" step="5" value="45" required>
+      </label>
+      <div class="actions">
+        <button id="submit-interview-schedule" class="button" type="submit">Schedule and send invitation</button>
+      </div>
+      <p id="interview-scheduling-feedback" class="form-error" role="status" hidden></p>
+    </form>
+  </section>
+
+  <section class="detail-card" aria-labelledby="scheduled-interviews-title">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Persisted interview sessions</p>
+        <h2 id="scheduled-interviews-title">Scheduled interviews</h2>
+      </div>
+      <span class="hint">A session appears only after an explicit recruiter scheduling action.</span>
+    </div>
+    <div id="interview-feedback" class="form-error" role="status" hidden></div>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr><th>Candidate</th><th>Role</th><th>Scheduled</th><th>Duration</th><th>Status</th><th>Invitation</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="scheduled-interviews-body">
+          <tr><td colspan="7">No interviews have been scheduled.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 {% endblock %}
 
 {% block scripts %}
   <script src="/static/js/applications.js?v=20261012-deletion-1" defer></script>
   <script src="/static/js/screening.js?v=20261008-m6-2" defer></script>
-  <script src="/static/js/scoring.js?v=20261009-m7-1" defer></script>
+  <script src="/static/js/scoring.js?v=20261012-m10a-1" defer></script>
+  <script src="/static/js/interviews.js?v=20261012-m10a-1" defer></script>
 {% endblock %}

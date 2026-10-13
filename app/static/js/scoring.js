@@ -109,6 +109,15 @@ function renderScores(body) {
     button.dataset.scoreCurrent = entry.is_current ? "true" : "false";
     button.textContent = entry.suitability_score === null ? "Calculate score" : entry.is_current ? "View score" : "Recalculate";
     action.append(button);
+    if (entry.suitability_score !== null && entry.is_current) {
+      const scheduleButton = document.createElement("button");
+      scheduleButton.type = "button";
+      scheduleButton.className = "button compact";
+      scheduleButton.dataset.scheduleApplicationId = entry.application_id;
+      scheduleButton.dataset.candidateReference = entry.candidate_reference;
+      scheduleButton.textContent = "Schedule interview";
+      action.append(scheduleButton);
+    }
     scoresBody.append(row);
   });
 }

@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = Field(default=8000, ge=1, le=65535)
+    app_base_url: str = "http://localhost:8000"
+    jwt_secret: str = ""
     database_url: str = "postgresql+psycopg://recrunion:CHANGE_ME@localhost:5432/recrunion"
     log_level: str = "INFO"
     llm_provider: str = "gemini"
@@ -50,6 +52,12 @@ class Settings(BaseSettings):
     gmail_refresh_token: str = ""
     gmail_api_base_url: str = "https://gmail.googleapis.com/gmail/v1"
     gmail_timeout_seconds: float = Field(default=20.0, gt=0)
+    gmail_send_client_id: str = ""
+    gmail_send_client_secret: str = ""
+    gmail_send_refresh_token: str = ""
+    gmail_send_sender: str = ""
+    gmail_send_api_base_url: str = "https://gmail.googleapis.com/gmail/v1"
+    gmail_send_timeout_seconds: float = Field(default=20.0, gt=0)
     drive_client_id: str = ""
     drive_client_secret: str = ""
     drive_refresh_token: str = ""

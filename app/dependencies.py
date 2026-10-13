@@ -8,9 +8,11 @@ from app.adapters.bluesky import BlueskyPublisher
 from app.adapters.document_parser import CompanyDocumentParser
 from app.adapters.document_storage import DocumentStorage, LocalDocumentStorage
 from app.adapters.drive import GoogleDriveArchiveAdapter
+from app.adapters.email import EmailAdapter
 from app.adapters.embeddings import EmbeddingAdapter
 from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.gmail import GmailApplicationSource
+from app.adapters.gmail_email import GmailEmailAdapter
 from app.adapters.google_oauth import GoogleOAuthClient, GoogleOAuthCredentials
 from app.adapters.llm import LLMAdapter
 from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
@@ -30,6 +32,7 @@ from app.repositories.candidate_screening import CandidateScreeningRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.deletions import DeletionRepository
 from app.repositories.email_intake import EmailIntakeRepository
+from app.repositories.interviews import InterviewRepository
 from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
 from app.repositories.policy_knowledge import PolicyKnowledgeRepository, PolicyReviewRepository
@@ -45,6 +48,7 @@ from app.services.company_documents import CompanyDocumentService
 from app.services.deletions import DeletionService
 from app.services.drive_archive import DriveArchiveService
 from app.services.email_intake import EmailApplicationIntakeService
+from app.services.interview_scheduling import InterviewSchedulingService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
 from app.services.job_publications import JobPublishingService
@@ -146,6 +150,37 @@ def get_email_intake_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> EmailApplicationIntakeService:
     return build_email_intake_service(session)
+
+
+def get_outbound_email_adapter() -> EmailAdapter:
+    settings = get_settings()
+    oauth = GoogleOAuthClient(
+        GoogleOAuthCredentials(
+            settings.gmail_send_client_id,
+            settings.gmail_send_client_secret,
+            settings.gmail_send_refresh_token,
+        )
+    )
+    return GmailEmailAdapter(
+        oauth=oauth,
+        sender=settings.gmail_send_sender,
+        api_base_url=settings.gmail_send_api_base_url,
+        timeout_seconds=settings.gmail_send_timeout_seconds,
+    )
+
+
+def get_interview_scheduling_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    email_adapter: Annotated[EmailAdapter, Depends(get_outbound_email_adapter)],
+) -> InterviewSchedulingService:
+    settings = get_settings()
+    return InterviewSchedulingService(
+        InterviewRepository(session),
+        JobRepository(session),
+        email_adapter,
+        app_base_url=settings.app_base_url,
+        token_secret=settings.jwt_secret,
+    )
 
 
 def build_candidate_processing_service(

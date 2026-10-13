@@ -203,7 +203,13 @@ async def test_gmail_source_uses_exact_subject_and_decodes_pdf_attachment() -> N
                 "id": "message-1",
                 "internalDate": "1791772800000",
                 "payload": {
-                    "headers": [{"name": "Subject", "value": "[RU-1234ABCD] Application"}],
+                    "headers": [
+                        {"name": "Subject", "value": "[RU-1234ABCD] Application"},
+                        {
+                            "name": "From",
+                            "value": "Synthetic Candidate <Candidate.Sender@Example.COM>",
+                        },
+                    ],
                     "parts": [
                         {
                             "filename": "candidate.pdf",
@@ -224,6 +230,7 @@ async def test_gmail_source_uses_exact_subject_and_decodes_pdf_attachment() -> N
 
     assert seen_query == 'subject:"[RU-1234ABCD] Application" has:attachment'
     assert messages[0].attachments[0].content == b"%PDF"
+    assert messages[0].sender_email == "Candidate.Sender@example.com"
 
 
 async def test_email_intake_reuses_manual_pipeline_and_archives_to_drive(
@@ -242,7 +249,14 @@ async def test_email_intake_reuses_manual_pipeline_and_archives_to_drive(
         content=_pdf(),
     )
     source = FakeGmailSource(
-        [GmailApplicationMessage("message-1", datetime.now(UTC), (attachment,))]
+        [
+            GmailApplicationMessage(
+                "message-1",
+                datetime.now(UTC),
+                (attachment,),
+                sender_email="candidate.sender@example.com",
+            )
+        ]
     )
     drive = FakeDriveArchive()
     service = build_email_intake_service(
@@ -259,6 +273,7 @@ async def test_email_intake_reuses_manual_pipeline_and_archives_to_drive(
     status = service.status(job_id)
     assert summary.imported == 1
     assert applications[0].source == ApplicationSource.EMAIL
+    assert applications[0].contact_email == "candidate.sender@example.com"
     assert status.receipts[0].archive_status == DriveArchiveStatus.ARCHIVED
     assert source.codes == [job.application_code]
     assert drive.files[0][1].startswith("APP-")

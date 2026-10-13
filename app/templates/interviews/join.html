@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scheduled interview · RecrUnion</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261012-m10a-1">
+  </head>
+  <body class="candidate-interview-page">
+    <main class="candidate-interview-shell">
+      <section class="detail-card">
+        <p class="eyebrow">RecrUnion Interview</p>
+        <h1>{{ interview.job_title }}</h1>
+        <dl class="candidate-interview-details">
+          <div><dt>Scheduled</dt><dd id="candidate-interview-time">{{ interview.scheduled_start_at.isoformat() }}</dd></div>
+          <div><dt>Timezone</dt><dd>{{ interview.timezone }}</dd></div>
+          <div><dt>Duration</dt><dd>{{ interview.duration_minutes }} minutes</dd></div>
+          <div><dt>Status</dt><dd><span class="status-badge">{{ interview.status.value }}</span></dd></div>
+        </dl>
+        <p>Your interview room will be available at the scheduled time.</p>
+        <p class="hint">Keep this private link secure. Camera and microphone access are not requested on this scheduling page.</p>
+      </section>
+    </main>
+    <script>
+      const scheduled = document.querySelector("#candidate-interview-time");
+      scheduled.textContent = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "full",
+        timeStyle: "short",
+        timeZone: "{{ interview.timezone }}",
+      }).format(new Date(scheduled.textContent));
+    </script>
+  </body>
+</html>

@@ -16,6 +16,7 @@ from app.models.applications import (
     CandidateProfile,
     JobApplication,
 )
+from app.models.interviews import InterviewSession
 from app.models.jobs import Job, RequirementCategory, RequirementType
 from app.models.processing_jobs import ProcessingJob, ProcessingJobStatus, ProcessingJobType
 from app.models.scoring import CandidateScore, EvidenceCoverage
@@ -126,6 +127,16 @@ def test_delete_application_removes_file_and_all_candidate_derived_data(
                 source_screened_at=datetime.now(UTC),
                 algorithm_version="F2_V1",
             ),
+            InterviewSession(
+                job_id=UUID(job["id"]),
+                application_id=application_id,
+                candidate_id=candidate_id,
+                scheduled_start_at=datetime.now(UTC),
+                duration_minutes=45,
+                display_timezone="UTC",
+                candidate_access_token_hash="c" * 64,
+                invitation_email="confirmed@example.com",
+            ),
         ]
     )
     db_session.commit()
@@ -143,6 +154,7 @@ def test_delete_application_removes_file_and_all_candidate_derived_data(
     assert _count(db_session, CandidateRequirementMatch) == 0
     assert _count(db_session, CandidateRequirementEvidence) == 0
     assert _count(db_session, CandidateScore) == 0
+    assert _count(db_session, InterviewSession) == 0
     assert _count(db_session, Candidate) == 0
     assert client.get(f"/api/v1/jobs/{job['id']}").status_code == 200
     assert (

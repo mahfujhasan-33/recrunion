@@ -1,9 +1,11 @@
 import base64
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.utils import parseaddr
 from typing import Any
 
 import httpx
+from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.adapters.google_oauth import GoogleOAuthClient, GoogleOAuthError
 from app.errors import (
@@ -28,6 +30,10 @@ class GmailApplicationMessage:
     message_id: str
     received_at: datetime
     attachments: tuple[GmailAttachment, ...]
+    sender_email: str | None = None
+
+
+EMAIL_ADAPTER = TypeAdapter(EmailStr)
 
 
 class GmailApplicationSource:
@@ -166,7 +172,12 @@ class GmailApplicationSource:
             received_at = datetime.fromtimestamp(int(str(raw_received)) / 1000, tz=UTC)
         except (TypeError, ValueError, OSError):
             received_at = datetime.now(UTC)
-        return GmailApplicationMessage(message_id, received_at, tuple(attachments))
+        return GmailApplicationMessage(
+            message_id,
+            received_at,
+            tuple(attachments),
+            sender_email=self._sender_email(message),
+        )
 
     @classmethod
     def _attachment_parts(cls, payload: object) -> list[dict[str, Any]]:
@@ -183,13 +194,27 @@ class GmailApplicationSource:
 
     @staticmethod
     def _subject(message: dict[str, Any]) -> str:
+        return GmailApplicationSource._header(message, "subject")
+
+    @staticmethod
+    def _header(message: dict[str, Any], name: str) -> str:
         payload = message.get("payload")
         if not isinstance(payload, dict):
             return ""
         for header in payload.get("headers", []):
-            if isinstance(header, dict) and str(header.get("name", "")).casefold() == "subject":
+            if isinstance(header, dict) and str(header.get("name", "")).casefold() == name:
                 return str(header.get("value", "")).strip()
         return ""
+
+    @classmethod
+    def _sender_email(cls, message: dict[str, Any]) -> str | None:
+        _, address = parseaddr(cls._header(message, "from"))
+        if not address:
+            return None
+        try:
+            return str(EMAIL_ADAPTER.validate_python(address))
+        except ValidationError:
+            return None
 
     @staticmethod
     def _decode_data(data: object) -> bytes:
