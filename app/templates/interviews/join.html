@@ -3,31 +3,59 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Scheduled interview · RecrUnion</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20261012-m10a-1">
+    <title>{{ room.job_title }} interview · RecrUnion</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261013-m10b-1">
   </head>
   <body class="candidate-interview-page">
-    <main class="candidate-interview-shell">
-      <section class="detail-card">
-        <p class="eyebrow">RecrUnion Interview</p>
-        <h1>{{ interview.job_title }}</h1>
+    <main class="interview-room-shell">
+      <header class="interview-room-header">
+        <div>
+          <p class="eyebrow">RecrUnion Interview · {{ room.role.value | title }}</p>
+          <h1>{{ room.job_title }}</h1>
+          {% if room.candidate_reference %}<p>Candidate: <strong>{{ room.candidate_reference }}</strong></p>{% endif %}
+        </div>
         <dl class="candidate-interview-details">
-          <div><dt>Scheduled</dt><dd id="candidate-interview-time">{{ interview.scheduled_start_at.isoformat() }}</dd></div>
-          <div><dt>Timezone</dt><dd>{{ interview.timezone }}</dd></div>
-          <div><dt>Duration</dt><dd>{{ interview.duration_minutes }} minutes</dd></div>
-          <div><dt>Status</dt><dd><span class="status-badge">{{ interview.status.value }}</span></dd></div>
+          <div><dt>Scheduled</dt><dd id="candidate-interview-time">{{ room.scheduled_start_at.isoformat() }}</dd></div>
+          <div><dt>Timezone</dt><dd>{{ room.timezone }}</dd></div>
+          <div><dt>Duration</dt><dd>{{ room.duration_minutes }} minutes</dd></div>
+          <div><dt>Status</dt><dd><span class="status-badge">{{ room.status.value }}</span></dd></div>
         </dl>
-        <p>Your interview room will be available at the scheduled time.</p>
-        <p class="hint">Keep this private link secure. Camera and microphone access are not requested on this scheduling page.</p>
+      </header>
+
+      <section id="interview-prejoin" class="detail-card interview-prejoin">
+        <div>
+          <p class="eyebrow">Device check</p>
+          <h2>Prepare your camera and microphone</h2>
+          <p>Permission is requested only after you select the device-check button. RecrUnion does not record this call.</p>
+          <p class="hint">For another device or network, this page must be served over HTTPS. Localhost works for same-computer testing.</p>
+        </div>
+        <div class="actions">
+          <button id="prepare-interview-media" class="button secondary" type="button">Check camera &amp; microphone</button>
+          <button id="join-interview-room" class="button" type="button" disabled>Join interview</button>
+        </div>
       </section>
+
+      <section class="interview-video-grid" aria-label="Interview video call">
+        <article class="interview-video-card">
+          <video id="remote-interview-video" autoplay playsinline></video>
+          <span class="interview-video-label">Remote participant</span>
+          <div id="remote-video-placeholder" class="interview-video-placeholder">Waiting for the other participant</div>
+        </article>
+        <article class="interview-video-card local">
+          <video id="local-interview-video" autoplay muted playsinline></video>
+          <span class="interview-video-label">You · {{ room.role.value | title }}</span>
+          <div id="local-video-placeholder" class="interview-video-placeholder">Run the device check to preview your camera</div>
+        </article>
+      </section>
+
+      <section class="interview-controls" aria-label="Call controls">
+        <button id="toggle-interview-microphone" class="button secondary" type="button" disabled>Mute microphone</button>
+        <button id="toggle-interview-camera" class="button secondary" type="button" disabled>Turn camera off</button>
+        <button id="leave-interview-room" class="button danger" type="button" disabled>{% if room.role.value == 'INTERVIEWER' %}End interview{% else %}Leave interview{% endif %}</button>
+      </section>
+      <p id="interview-room-status" class="interview-room-status" role="status" aria-live="polite">Run the device check when you are ready.</p>
     </main>
-    <script>
-      const scheduled = document.querySelector("#candidate-interview-time");
-      scheduled.textContent = new Intl.DateTimeFormat(undefined, {
-        dateStyle: "full",
-        timeStyle: "short",
-        timeZone: "{{ interview.timezone }}",
-      }).format(new Date(scheduled.textContent));
-    </script>
+    <script id="interview-room-config" type="application/json">{{ room_config | tojson }}</script>
+    <script src="/static/js/interview_room.js?v=20261013-m10b-1" defer></script>
   </body>
 </html>

@@ -48,6 +48,7 @@ from app.services.company_documents import CompanyDocumentService
 from app.services.deletions import DeletionService
 from app.services.drive_archive import DriveArchiveService
 from app.services.email_intake import EmailApplicationIntakeService
+from app.services.interview_rooms import InterviewRoomService, parse_stun_urls
 from app.services.interview_scheduling import InterviewSchedulingService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
@@ -180,6 +181,19 @@ def get_interview_scheduling_service(
         email_adapter,
         app_base_url=settings.app_base_url,
         token_secret=settings.jwt_secret,
+    )
+
+
+def get_interview_room_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> InterviewRoomService:
+    settings = get_settings()
+    return InterviewRoomService(
+        InterviewRepository(session),
+        JobRepository(session),
+        token_secret=settings.jwt_secret,
+        signaling_ticket_ttl_seconds=settings.webrtc_signaling_ticket_ttl_seconds,
+        stun_urls=parse_stun_urls(settings.webrtc_stun_urls),
     )
 
 

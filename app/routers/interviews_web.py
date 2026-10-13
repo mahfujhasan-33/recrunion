@@ -1,18 +1,19 @@
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_interview_scheduling_service
-from app.services.interview_scheduling import InterviewSchedulingService
+from app.dependencies import get_interview_room_service
+from app.services.interview_rooms import InterviewRoomService
 
-router = APIRouter(tags=["candidate interview pages"], include_in_schema=False)
+router = APIRouter(tags=["interview room pages"], include_in_schema=False)
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
-InterviewSchedulingServiceDependency = Annotated[
-    InterviewSchedulingService,
-    Depends(get_interview_scheduling_service),
+InterviewRoomServiceDependency = Annotated[
+    InterviewRoomService,
+    Depends(get_interview_room_service),
 ]
 
 
@@ -20,10 +21,25 @@ InterviewSchedulingServiceDependency = Annotated[
 def candidate_interview_page(
     request: Request,
     token: str,
-    service: InterviewSchedulingServiceDependency,
+    service: InterviewRoomServiceDependency,
 ) -> HTMLResponse:
+    room = service.get_candidate_room(token)
     return templates.TemplateResponse(
         request=request,
         name="interviews/join.html",
-        context={"interview": service.get_candidate_view(token)},
+        context={"room": room, "room_config": room.model_dump(mode="json")},
+    )
+
+
+@router.get("/interviews/{interview_id}/room", response_class=HTMLResponse)
+def recruiter_interview_page(
+    request: Request,
+    interview_id: UUID,
+    service: InterviewRoomServiceDependency,
+) -> HTMLResponse:
+    room = service.get_interviewer_room(interview_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="interviews/join.html",
+        context={"room": room, "room_config": room.model_dump(mode="json")},
     )

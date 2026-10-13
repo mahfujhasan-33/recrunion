@@ -77,6 +77,10 @@ function renderInterviews(interviews) {
       invitation.append(error);
     }
     const actions = interviewCell(row, "");
+    const openRoom = document.createElement("a");
+    openRoom.className = "button secondary compact";
+    openRoom.href = `/interviews/${interview.id}/room`;
+    openRoom.textContent = "Open room";
     const copy = document.createElement("button");
     copy.type = "button";
     copy.className = "button secondary compact";
@@ -87,7 +91,7 @@ function renderInterviews(interviews) {
     resend.className = "button compact";
     resend.dataset.resendInterviewId = interview.id;
     resend.textContent = interview.invitation_status === "SENT" ? "Resend invitation" : "Retry invitation";
-    actions.append(copy, resend);
+    actions.append(openRoom, copy, resend);
     interviewsBody.append(row);
   });
 }

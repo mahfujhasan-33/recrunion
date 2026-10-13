@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1, le=65535)
     app_base_url: str = "http://localhost:8000"
     jwt_secret: str = ""
+    webrtc_stun_urls: str = "stun:stun.l.google.com:19302"
+    webrtc_signaling_ticket_ttl_seconds: int = Field(default=600, ge=30, le=3600)
     database_url: str = "postgresql+psycopg://recrunion:CHANGE_ME@localhost:5432/recrunion"
     log_level: str = "INFO"
     llm_provider: str = "gemini"

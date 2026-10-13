@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.interviews import InterviewStatus, InvitationStatus
+from app.schemas.interview_signaling import InterviewParticipantRole
 
 
 class InvitationEmailSource(StrEnum):
@@ -54,3 +55,20 @@ class CandidateInterviewView(BaseModel):
     scheduled_start_at: datetime
     duration_minutes: int
     timezone: str
+
+
+class IceServerConfiguration(BaseModel):
+    urls: list[str]
+
+
+class InterviewRoomView(BaseModel):
+    interview_id: UUID
+    job_title: str
+    candidate_reference: str | None
+    role: InterviewParticipantRole
+    status: InterviewStatus
+    scheduled_start_at: datetime
+    duration_minutes: int
+    timezone: str
+    signaling_ticket: str
+    ice_servers: list[IceServerConfiguration]
