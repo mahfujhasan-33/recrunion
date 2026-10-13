@@ -287,6 +287,20 @@ class InterviewConfigurationError(RecrUnionError):
     status_code = 503
 
 
+class VideoProviderError(RecrUnionError):
+    code = "VIDEO_PROVIDER_UNAVAILABLE"
+    status_code = 502
+
+
+class VideoConfigurationError(VideoProviderError):
+    code = "VIDEO_PROVIDER_NOT_CONFIGURED"
+    status_code = 503
+
+
+class InterviewProviderCleanupError(VideoProviderError):
+    code = "VIDEO_ROOM_CLEANUP_FAILED"
+
+
 class InterviewLifecycleError(RecrUnionError):
     code = "INTERVIEW_LIFECYCLE_INVALID"
     status_code = 409

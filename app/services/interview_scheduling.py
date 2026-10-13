@@ -106,7 +106,14 @@ class InterviewSchedulingService:
         interview = self._get_interview(interview_id)
         job = self._get_job(interview.job_id)
         application = self._get_application(interview)
-        token = self._verified_token(interview)
+        token = self._token_for(interview.id)
+        current_token_hash = hash_token(token)
+        if not hmac.compare_digest(
+            current_token_hash,
+            interview.candidate_access_token_hash,
+        ):
+            interview.candidate_access_token_hash = current_token_hash
+            self._interviews.save(interview)
         await self._send_invitation(interview, job, token)
         return self._response(interview, job, application)
 
@@ -191,7 +198,7 @@ class InterviewSchedulingService:
         job: Job,
         application: JobApplication,
     ) -> InterviewResponse:
-        token = self._verified_token(interview)
+        candidate_join_url = self._candidate_join_url(interview)
         return InterviewResponse(
             id=interview.id,
             job_id=interview.job_id,
@@ -212,7 +219,7 @@ class InterviewSchedulingService:
             ),
             invitation_error_code=interview.invitation_error_code,
             invitation_error_message=interview.invitation_error_message,
-            candidate_join_url=self._join_url(token),
+            candidate_join_url=candidate_join_url,
             started_at=(
                 ensure_utc(interview.started_at) if interview.started_at is not None else None
             ),
@@ -302,6 +309,13 @@ class InterviewSchedulingService:
                 "The configured candidate-link secret does not match this interview."
             )
         return token
+
+    def _candidate_join_url(self, interview: InterviewSession) -> str | None:
+        try:
+            token = self._verified_token(interview)
+        except InterviewConfigurationError:
+            return None
+        return self._join_url(token)
 
     def _join_url(self, token: str) -> str:
         return f"{self._app_base_url}/interviews/join/{token}"

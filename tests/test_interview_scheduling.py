@@ -201,13 +201,18 @@ def create_scored_application(
     return job, application
 
 
-def build_service(session: Session, email: FakeEmailAdapter) -> InterviewSchedulingService:
+def build_service(
+    session: Session,
+    email: FakeEmailAdapter,
+    *,
+    token_secret: str = TEST_SECRET,
+) -> InterviewSchedulingService:
     return InterviewSchedulingService(
         InterviewRepository(session),
         JobRepository(session),
         email,
         app_base_url="http://testserver",
-        token_secret=TEST_SECRET,
+        token_secret=token_secret,
     )
 
 
@@ -395,6 +400,39 @@ async def test_invitation_failure_is_persisted_and_retry_reuses_interview(
         "candidate@example.com",
     ]
     assert original_profile != application.document.profile.structured_json
+
+
+@pytest.mark.asyncio
+async def test_stale_candidate_link_does_not_hide_scheduled_interviews_and_resend_recovers_it(
+    db_session: Session,
+) -> None:
+    job, application = create_scored_application(db_session)
+    email = FakeEmailAdapter()
+    service = build_service(db_session, email)
+    scheduled = await service.schedule(application.id, future_payload())
+    assert scheduled.candidate_join_url is not None
+    old_join_url = scheduled.candidate_join_url
+    rotated_service = build_service(
+        db_session,
+        email,
+        token_secret="rotated-test-secret-with-at-least-32-characters",
+    )
+
+    listed = rotated_service.list_for_job(job.id)
+
+    assert [item.id for item in listed] == [scheduled.id]
+    assert listed[0].candidate_join_url is None
+
+    resent = await rotated_service.resend_invitation(scheduled.id)
+
+    assert resent.candidate_join_url is not None
+    assert resent.candidate_join_url != old_join_url
+    assert resent.candidate_join_url in email.messages[-1].text_body
+    assert rotated_service.get_candidate_view(
+        resent.candidate_join_url.rsplit("/", 1)[-1]
+    ).job_title
+    with pytest.raises(InterviewNotFoundError):
+        rotated_service.get_candidate_view(old_join_url.rsplit("/", 1)[-1])
 
 
 def test_scheduling_email_precedence_and_blank_fallback(db_session: Session) -> None:

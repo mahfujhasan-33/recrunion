@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_interview_room_service
+from app.schemas.interviews import InterviewLifecycleResponse
 from app.services.interview_rooms import InterviewRoomService
 
 router = APIRouter(tags=["interview room pages"], include_in_schema=False)
@@ -28,6 +29,23 @@ def candidate_interview_page(
         request=request,
         name="interviews/join.html",
         context={"room": room, "room_config": room.model_dump(mode="json")},
+    )
+
+
+@router.post(
+    "/interviews/join/{token}/lifecycle-sync",
+    response_model=InterviewLifecycleResponse,
+)
+async def sync_candidate_interview_lifecycle(
+    token: str,
+    service: InterviewRoomServiceDependency,
+) -> InterviewLifecycleResponse:
+    interview = await service.sync_candidate_lifecycle(token)
+    return InterviewLifecycleResponse(
+        interview_id=interview.id,
+        status=interview.status,
+        started_at=interview.started_at,
+        ended_at=interview.ended_at,
     )
 
 

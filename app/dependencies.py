@@ -14,9 +14,11 @@ from app.adapters.gemini import GeminiLLMAdapter
 from app.adapters.gmail import GmailApplicationSource
 from app.adapters.gmail_email import GmailEmailAdapter
 from app.adapters.google_oauth import GoogleOAuthClient, GoogleOAuthCredentials
+from app.adapters.livekit_video import LiveKitVideoAdapter
 from app.adapters.llm import LLMAdapter
 from app.adapters.ollama_embeddings import OllamaEmbeddingAdapter
 from app.adapters.publisher import PublisherAdapter
+from app.adapters.video import VideoAdapter
 from app.config import get_settings
 from app.database import get_db_session
 from app.errors import EmbeddingProviderError, LLMConfigurationError
@@ -48,11 +50,7 @@ from app.services.company_documents import CompanyDocumentService
 from app.services.deletions import DeletionService
 from app.services.drive_archive import DriveArchiveService
 from app.services.email_intake import EmailApplicationIntakeService
-from app.services.interview_rooms import (
-    InterviewRoomService,
-    parse_stun_urls,
-    parse_turn_urls,
-)
+from app.services.interview_rooms import InterviewRoomService
 from app.services.interview_scheduling import InterviewSchedulingService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
@@ -188,20 +186,24 @@ def get_interview_scheduling_service(
     )
 
 
+def get_video_adapter() -> VideoAdapter:
+    settings = get_settings()
+    return LiveKitVideoAdapter(
+        url=settings.livekit_url,
+        api_key=settings.livekit_api_key,
+        api_secret=settings.livekit_api_secret,
+        token_ttl_seconds=settings.livekit_token_ttl_seconds,
+    )
+
+
 def get_interview_room_service(
     session: Annotated[Session, Depends(get_db_session)],
+    video_adapter: Annotated[VideoAdapter, Depends(get_video_adapter)],
 ) -> InterviewRoomService:
-    settings = get_settings()
     return InterviewRoomService(
         InterviewRepository(session),
         JobRepository(session),
-        token_secret=settings.jwt_secret,
-        signaling_ticket_ttl_seconds=settings.webrtc_signaling_ticket_ttl_seconds,
-        stun_urls=parse_stun_urls(settings.webrtc_stun_urls),
-        turn_urls=parse_turn_urls(settings.turn_url),
-        turn_username=settings.turn_username,
-        turn_password=settings.turn_password,
-        ice_transport_policy=settings.webrtc_ice_transport_policy,
+        video_adapter,
     )
 
 

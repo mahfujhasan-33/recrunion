@@ -1,12 +1,11 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.adapters.video import VideoParticipantRole
 from app.models.interviews import InterviewStatus, InvitationStatus
-from app.schemas.interview_signaling import InterviewParticipantRole
 
 
 class InvitationEmailSource(StrEnum):
@@ -45,7 +44,7 @@ class InterviewResponse(BaseModel):
     invitation_sent_at: datetime | None
     invitation_error_code: str | None
     invitation_error_message: str | None
-    candidate_join_url: str
+    candidate_join_url: str | None
     started_at: datetime | None
     ended_at: datetime | None
     created_at: datetime
@@ -60,24 +59,29 @@ class CandidateInterviewView(BaseModel):
     timezone: str
 
 
-class IceServerConfiguration(BaseModel):
-    urls: list[str]
-    username: str | None = None
-    credential: str | None = None
-
-
 class InterviewRoomView(BaseModel):
     interview_id: UUID
     job_title: str
     candidate_reference: str | None
-    role: InterviewParticipantRole
+    role: VideoParticipantRole
     status: InterviewStatus
     scheduled_start_at: datetime
     duration_minutes: int
     timezone: str
-    signaling_ticket: str | None
-    ice_servers: list[IceServerConfiguration]
-    ice_transport_policy: Literal["all", "relay"] = "all"
+    livekit_url: str | None = None
+    participant_token: str | None = None
+    participant_identity: str | None = None
+    provider_configured: bool
+    provider_error_message: str | None = None
+    lifecycle_sync_url: str
+    end_url: str | None = None
     join_allowed: bool = True
     started_at: datetime | None = None
     ended_at: datetime | None = None
+
+
+class InterviewLifecycleResponse(BaseModel):
+    interview_id: UUID
+    status: InterviewStatus
+    started_at: datetime | None
+    ended_at: datetime | None

@@ -15,12 +15,10 @@ services:
       APP_PORT: ${APP_PORT:-8000}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8000}
       JWT_SECRET: ${JWT_SECRET}
-      WEBRTC_STUN_URLS: ${WEBRTC_STUN_URLS:-stun:stun.l.google.com:19302}
-      WEBRTC_SIGNALING_TICKET_TTL_SECONDS: ${WEBRTC_SIGNALING_TICKET_TTL_SECONDS:-600}
-      TURN_URL: ${TURN_URL:-}
-      TURN_USERNAME: ${TURN_USERNAME:-}
-      TURN_PASSWORD: ${TURN_PASSWORD:-}
-      WEBRTC_ICE_TRANSPORT_POLICY: ${WEBRTC_ICE_TRANSPORT_POLICY:-all}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_TOKEN_TTL_SECONDS: ${LIVEKIT_TOKEN_TTL_SECONDS:-600}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MAX_RETRIES: ${GEMINI_MAX_RETRIES:-1}
@@ -182,32 +180,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 5s
-
-  coturn:
-    image: coturn/coturn:4.18.0-r0-alpine
-    restart: unless-stopped
-    command:
-      - -n
-      - --log-file=stdout
-      - --fingerprint
-      - --lt-cred-mech
-      - --no-cli
-      - --no-multicast-peers
-      - --realm=${TURN_REALM:-recrunion.local}
-      - --user=${TURN_USERNAME:-recrunion}:${TURN_PASSWORD:-CHANGE_ME_TURN_PASSWORD}
-      - --external-ip=${TURN_EXTERNAL_IP:-127.0.0.1}
-      - --min-port=${TURN_MIN_PORT:-40000}
-      - --max-port=${TURN_MAX_PORT:-40020}
-    ports:
-      - "3478:3478/tcp"
-      - "3478:3478/udp"
-      - "${TURN_MIN_PORT:-40000}-${TURN_MAX_PORT:-40020}:${TURN_MIN_PORT:-40000}-${TURN_MAX_PORT:-40020}/udp"
-    healthcheck:
-      test: ["CMD-SHELL", "pidof turnserver >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
       start_period: 5s
 
 volumes:

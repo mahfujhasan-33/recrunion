@@ -5,51 +5,37 @@ Use the simplest architecture that still satisfies all six mandatory core featur
 
 ## Runtime
 ```text
-Candidate Browser  <====== browser-native WebRTC media ======>  Interviewer Browser
-        |                                                         |
-        +--------- SDP / ICE / presence signalling ---------------+
-                                  |
-                                  v
-                         FastAPI WebSocket
-
-Each browser microphone
+Candidate Browser -------- encrypted audio/video -------- LiveKit Cloud
+        |                                                   ^
+        |                                                   |
+        +--> RecrUnion capability validation                |
+                                                            |
+Interviewer Browser ------ encrypted audio/video -----------+
         |
-        +--> WebRTC track to the remote participant
-        |
-        +--> transcription audio copy
-                 |
-                 v
-        RecrUnion STT WebSocket
-                 |
-          STTSessionService
-                 |
-             STTAdapter
-                 |
-    AssemblyAIStreamingSTTAdapter
-                 |
-       normalized TranscriptEvent
-                 |
-      PostgreSQL + live transcript UI
+        +--> RecrUnion recruiter room authorization
 
 FastAPI Web Application
 (Jinja2 + HTML/CSS/Vanilla JS)
         |
         +--> Application Services
         +--> processing_jobs --> Python Worker --> LangGraph
-        +--> Adapter Layer --> Gemini / Ollama-Nomic / Bluesky / SMTP / AssemblyAI
+        +--> Adapter Layer --> Gemini / Ollama-Nomic / LiveKit / Bluesky / Gmail
         +--> PostgreSQL + pgvector
+
+Future F4:
+LiveKit room --> hosted transcription agent --> AssemblyAI --> RecrUnion transcript persistence
 ```
 
 Current containers:
 1. `app`
 2. `worker`
 3. `postgres`
-4. `coturn`
 
-`coturn` provides the project-controlled TURN relay when direct connectivity is unavailable. STUN
-and environment-provided TURN configuration support cross-network peer connectivity. FastAPI performs signalling only;
-it never proxies audio/video media. The F3 scope is exactly one interviewer and one candidate, with
-no SFU, group conferencing, Daily.co, LiveKit, Jitsi, Janus, or mediasoup.
+LiveKit Cloud is the external F3 realtime-media provider and owns signalling, WebRTC transport,
+ICE/STUN/TURN, NAT traversal, and reconnection. RecrUnion owns participant authorization,
+`InterviewSession` lifecycle, and persistence. FastAPI never proxies or records interview media.
+Exactly one authorized candidate and one authorized interviewer are supported; provider room
+capacity remains available for the future hidden F4 transcription agent.
 
 Baseline excludes Nginx, Redis, Celery, ChromaDB, Kubernetes, and microservices.
 
@@ -167,27 +153,23 @@ room: a recruiter manually selects a candidate, schedules date/time/timezone/dur
 session, creates a secure candidate-scoped RecrUnion join token/link, and sends the Gmail
 invitation. Calendar integration remains optional and deferred.
 
-M10B uses browser `getUserMedia()` and `RTCPeerConnection` for local preview, peer negotiation,
-remote rendering, mute, camera toggle, and end-call controls. A FastAPI WebSocket carries only SDP
-offers/answers, ICE candidates, and session presence. M10C adds bounded signalling reconnect,
-deterministic interviewer-led ICE restart, `SCHEDULED`/`WAITING`/`ACTIVE`/`ENDED` persistence, and
-coturn configuration. Physical cross-network and forced-relay verification remain an explicit
-deployment acceptance gate. Raw media travels directly peer-to-peer when possible or through TURN when required;
-it never traverses FastAPI.
+M10B/M10C historically implemented browser-native WebRTC, FastAPI signalling, and coturn; that
+checkpoint remains in Git history. M10-LK supersedes that transport with LiveKit Cloud behind
+`VideoAdapter`. FastAPI mints short-lived, exact-room participant tokens after validating the
+existing candidate capability or recruiter room request. Opaque provider identities contain no
+PII. A lifecycle-sync request asks `LiveKitVideoAdapter` for actual participants: one known human
+moves `SCHEDULED` to `WAITING`, both known humans move it to `ACTIVE` and write `started_at` once.
+Temporary disconnects do not end or duplicate the session. Interviewer end persists `ENDED` and
+`ended_at` before deleting the LiveKit room. Physical cross-network verification remains pending,
+so formal F3 is partial rather than complete.
 
 ## STT
-`STTAdapter` is the stable provider-neutral boundary. The current implementation choice is
-AssemblyAI Universal Streaming, isolated in `AssemblyAIStreamingSTTAdapter`. Each authenticated,
-session-scoped participant sends a separate transcription stream, so `participant_role` is
-deterministically `CANDIDATE` or `INTERVIEWER` without making provider diarization a requirement.
-
-The browser sends a microphone audio copy through the RecrUnion STT WebSocket to
-`STTSessionService`, which emits normalized `TranscriptEvent` values containing interview ID,
-participant role, start/end timestamps, text, final/partial state, nullable confidence, and only
-necessary internal provider metadata. `InterviewSession`, browser capture contracts, transcript
-persistence/UI, speaker attribution, F5, and F6 never depend on AssemblyAI response schemas.
-Possible future adapters include Deepgram, Groq/Whisper, and faster-whisper, but no alternative or
-automatic provider failover is part of the current scope.
+F4 is not implemented. M11 is planned to use a LiveKit Cloud hosted transcription agent that
+subscribes to the two deterministic human microphone tracks, sends audio to AssemblyAI, and sends
+normalized transcript events to RecrUnion. `STTAdapter` remains provider-neutral and AssemblyAI
+schemas must not escape its adapter. RecrUnion will persist structured transcript segments, not
+raw audio. No transcription agent, STT dependency, transcript endpoint, or browser-side second
+microphone pipeline is part of M10-LK.
 
 ## External actions
 - JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
@@ -196,9 +178,8 @@ automatic provider failover is part of the current scope.
 - CandidateProcessingService --`embed CV evidence`--> Ollama/Nomic + pgvector
 - ScreeningService --`retrieve persisted CV evidence`--> pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
-- Browser peers --`SDP/ICE signalling only`--> FastAPI WebSocket
-- Browser peers --`audio/video media`--> WebRTC P2P or configured STUN/TURN path
-- STTSessionService --`participant-scoped audio copy`--> STTAdapter --> AssemblyAI Universal Streaming
+- InterviewRoomService --> VideoAdapter --> LiveKitVideoAdapter --> LiveKit Cloud
+- Future hosted transcription agent --> STTAdapter --> AssemblyAI
 - AnalysisGraph --`evaluate Q&A`--> Gemini
 - AssessmentGraph --`generate narrative`--> Gemini
 - AssessmentService --`generate PDF`--> ReportLab
@@ -226,5 +207,4 @@ Potential MCP tools:
 
 Use environment variables for provider credentials and configuration.
 
-The existing architecture PNG assets predate ADR-016 and require a later diagram refresh; they are
-not edited in this documentation-only clarification.
+The existing architecture PNG assets predate ADR-021 and require a later diagram refresh.

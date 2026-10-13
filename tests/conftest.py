@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from typing import Any
+from uuid import UUID
 
 import pytest
 from fastapi import FastAPI
@@ -11,14 +12,22 @@ from sqlalchemy.pool import StaticPool
 from app import models  # noqa: F401
 from app.adapters.document_storage import LocalDocumentStorage
 from app.adapters.publisher import JobPublicationContent, PublicationResult
+from app.adapters.video import (
+    VideoParticipant,
+    VideoParticipantCredentials,
+    VideoParticipantRole,
+    video_participant_identity,
+    video_room_name,
+)
 from app.database import Base, get_db_session
 from app.dependencies import (
     get_application_document_storage,
     get_embedding_adapter,
     get_llm_adapter,
     get_publisher_adapter,
+    get_video_adapter,
 )
-from app.errors import LLMProviderError, PublisherError
+from app.errors import LLMProviderError, PublisherError, VideoProviderError
 from app.main import create_app
 from app.models.jobs import EmploymentType
 from app.models.screening import RequirementMatchStatus
@@ -333,6 +342,43 @@ class FakePublisherAdapter:
         )
 
 
+class FakeVideoAdapter:
+    def __init__(self, configured: bool = True) -> None:
+        self._configured = configured
+        self.participants: dict[str, list[VideoParticipant]] = {}
+        self.terminated_rooms: list[str] = []
+        self.list_error: VideoProviderError | None = None
+        self.terminate_error: VideoProviderError | None = None
+
+    @property
+    def configured(self) -> bool:
+        return self._configured
+
+    def create_participant_credentials(
+        self,
+        interview_id: UUID,
+        role: VideoParticipantRole,
+    ) -> VideoParticipantCredentials:
+        if not self.configured:
+            raise AssertionError("Credentials must not be created without configuration")
+        return VideoParticipantCredentials(
+            provider_url="wss://synthetic.livekit.example.test",
+            participant_token="synthetic-livekit-participant-token",
+            room_name=video_room_name(interview_id),
+            participant_identity=video_participant_identity(interview_id, role),
+        )
+
+    async def list_participants(self, interview_id: UUID) -> list[VideoParticipant]:
+        if self.list_error is not None:
+            raise self.list_error
+        return self.participants.get(video_room_name(interview_id), [])
+
+    async def terminate_room(self, interview_id: UUID) -> None:
+        if self.terminate_error is not None:
+            raise self.terminate_error
+        self.terminated_rooms.append(video_room_name(interview_id))
+
+
 @pytest.fixture
 def database_engine() -> Iterator[Engine]:
     engine = create_engine(
@@ -368,12 +414,18 @@ def fake_publisher_adapter() -> FakePublisherAdapter:
 
 
 @pytest.fixture
+def fake_video_adapter() -> FakeVideoAdapter:
+    return FakeVideoAdapter()
+
+
+@pytest.fixture
 def application(
     database_engine: Engine,
     tmp_path,
     fake_llm_adapter: FakeLLMAdapter,
     fake_embedding_adapter: FakeEmbeddingAdapter,
     fake_publisher_adapter: FakePublisherAdapter,
+    fake_video_adapter: FakeVideoAdapter,
 ) -> Iterator[FastAPI]:
     app = create_app()
 
@@ -385,6 +437,7 @@ def application(
     app.dependency_overrides[get_llm_adapter] = lambda: fake_llm_adapter
     app.dependency_overrides[get_embedding_adapter] = lambda: fake_embedding_adapter
     app.dependency_overrides[get_publisher_adapter] = lambda: fake_publisher_adapter
+    app.dependency_overrides[get_video_adapter] = lambda: fake_video_adapter
     app.dependency_overrides[get_application_document_storage] = lambda: LocalDocumentStorage(
         tmp_path / "applications",
         10 * 1024 * 1024,

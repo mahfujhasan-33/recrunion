@@ -1,28 +1,27 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.orm import Session
 
+from app.adapters.video import (
+    VideoParticipant,
+    VideoParticipantRole,
+    video_participant_identity,
+    video_room_name,
+)
 from app.errors import (
-    InterviewConfigurationError,
-    InterviewEndedError,
     InterviewLifecycleError,
     InterviewNotFoundError,
+    InterviewProviderCleanupError,
+    VideoProviderError,
 )
-from app.models.interviews import InterviewStatus
+from app.models.interviews import InterviewSession, InterviewStatus
 from app.repositories.interviews import InterviewRepository
 from app.repositories.jobs import JobRepository
-from app.schemas.interview_signaling import InterviewParticipantRole
-from app.services.interview_rooms import (
-    InterviewRoomService,
-    SignalingTicketCodec,
-    SignalingTicketError,
-    build_ice_server_configuration,
-    parse_stun_urls,
-    parse_turn_urls,
-)
+from app.services.interview_rooms import InterviewRoomService
+from tests.conftest import FakeVideoAdapter
 from tests.test_interview_scheduling import (
-    TEST_SECRET,
     FakeEmailAdapter,
     build_service,
     create_scored_application,
@@ -30,18 +29,19 @@ from tests.test_interview_scheduling import (
 )
 
 
-def build_room_service(session: Session) -> InterviewRoomService:
+def build_room_service(
+    session: Session,
+    video_adapter: FakeVideoAdapter | None = None,
+) -> InterviewRoomService:
     return InterviewRoomService(
         InterviewRepository(session),
         JobRepository(session),
-        token_secret=TEST_SECRET,
-        signaling_ticket_ttl_seconds=600,
-        stun_urls=["stun:stun.example.test:3478"],
+        video_adapter or FakeVideoAdapter(),
     )
 
 
 @pytest.mark.asyncio
-async def test_candidate_and_interviewer_rooms_issue_role_scoped_tickets(
+async def test_candidate_and_interviewer_rooms_receive_server_selected_credentials(
     db_session: Session,
 ) -> None:
     _, application = create_scored_application(db_session)
@@ -55,133 +55,27 @@ async def test_candidate_and_interviewer_rooms_issue_role_scoped_tickets(
     candidate = service.get_candidate_room(invitation_token)
     interviewer = service.get_interviewer_room(scheduled.id)
 
-    assert candidate.role == InterviewParticipantRole.CANDIDATE
+    assert candidate.role == VideoParticipantRole.CANDIDATE
     assert candidate.candidate_reference is None
-    assert interviewer.role == InterviewParticipantRole.INTERVIEWER
+    assert interviewer.role == VideoParticipantRole.INTERVIEWER
     assert interviewer.candidate_reference == application.candidate.display_reference
-    assert candidate.ice_servers[0].urls == ["stun:stun.example.test:3478"]
-    assert (
-        service.authenticate_ticket(
-            candidate.signaling_ticket,
-            scheduled.id,
-        ).role
-        == InterviewParticipantRole.CANDIDATE
+    assert candidate.livekit_url == "wss://synthetic.livekit.example.test"
+    assert candidate.participant_token == "synthetic-livekit-participant-token"
+    assert candidate.participant_identity == video_participant_identity(
+        scheduled.id,
+        VideoParticipantRole.CANDIDATE,
     )
+    assert interviewer.participant_identity == video_participant_identity(
+        scheduled.id,
+        VideoParticipantRole.INTERVIEWER,
+    )
+    assert candidate.lifecycle_sync_url.endswith(f"/{invitation_token}/lifecycle-sync")
+    assert candidate.end_url is None
+    assert interviewer.end_url == f"/api/v1/interviews/{scheduled.id}/end"
 
 
 @pytest.mark.asyncio
-async def test_room_lookup_rejects_unknown_invitation_and_interview(
-    db_session: Session,
-) -> None:
-    service = build_room_service(db_session)
-
-    with pytest.raises(InterviewNotFoundError):
-        service.get_candidate_room("not-a-valid-invitation")
-    with pytest.raises(InterviewNotFoundError):
-        service.get_interviewer_room(__import__("uuid").uuid4())
-
-
-def test_signaling_ticket_rejects_expiry_scope_role_and_tampering() -> None:
-    from uuid import uuid4
-
-    interview_id = uuid4()
-    now = datetime(2026, 10, 13, tzinfo=UTC)
-    codec = SignalingTicketCodec(TEST_SECRET, 60)
-    ticket = codec.issue(
-        interview_id,
-        InterviewParticipantRole.CANDIDATE,
-        now=now,
-    )
-
-    claims = codec.verify(
-        ticket,
-        expected_interview_id=interview_id,
-        expected_role=InterviewParticipantRole.CANDIDATE,
-        now=now + timedelta(seconds=30),
-    )
-    assert claims.interview_id == interview_id
-
-    with pytest.raises(SignalingTicketError, match="expired"):
-        codec.verify(
-            ticket,
-            expected_interview_id=interview_id,
-            now=now + timedelta(seconds=61),
-        )
-    with pytest.raises(SignalingTicketError, match="wrong interview"):
-        codec.verify(ticket, expected_interview_id=uuid4(), now=now)
-    with pytest.raises(SignalingTicketError, match="wrong participant role"):
-        codec.verify(
-            ticket,
-            expected_interview_id=interview_id,
-            expected_role=InterviewParticipantRole.INTERVIEWER,
-            now=now,
-        )
-    with pytest.raises(SignalingTicketError, match="invalid"):
-        codec.verify(
-            f"{ticket[:-1]}x",
-            expected_interview_id=interview_id,
-            now=now,
-        )
-
-
-def test_stun_configuration_ignores_blank_entries() -> None:
-    assert parse_stun_urls(" stun:one.example , ,stun:two.example ") == [
-        "stun:one.example",
-        "stun:two.example",
-    ]
-
-
-def test_turn_configuration_is_normalized_without_affecting_stun_only() -> None:
-    stun_only = build_ice_server_configuration(
-        ["stun:stun.example.test:3478"],
-        [],
-        "",
-        "",
-        "all",
-    )
-    assert len(stun_only) == 1
-    assert stun_only[0].username is None
-
-    turn_urls = parse_turn_urls(
-        "turn:turn.example.test:3478?transport=udp, turns:turn.example.test:5349?transport=tcp"
-    )
-    configured = build_ice_server_configuration(
-        ["stun:stun.example.test:3478"],
-        turn_urls,
-        "demo-user",
-        "private-demo-password",
-        "relay",
-    )
-
-    assert configured[1].urls == turn_urls
-    assert configured[1].username == "demo-user"
-    assert configured[1].credential == "private-demo-password"
-
-
-@pytest.mark.parametrize(
-    ("turn_urls", "username", "password", "policy"),
-    [
-        (["turn:turn.example.test:3478"], "", "", "all"),
-        ([], "demo-user", "", "all"),
-        ([], "demo-user", "private-demo-password", "all"),
-        ([], "", "", "relay"),
-    ],
-)
-def test_incomplete_turn_configuration_fails_safely(
-    turn_urls: list[str],
-    username: str,
-    password: str,
-    policy: str,
-) -> None:
-    with pytest.raises(InterviewConfigurationError):
-        build_ice_server_configuration([], turn_urls, username, password, policy)
-
-    with pytest.raises(InterviewConfigurationError):
-        parse_turn_urls("https://not-a-turn-server.example.test")
-
-
-@pytest.mark.asyncio
-async def test_interview_lifecycle_is_persisted_and_timestamps_are_write_once(
+async def test_missing_provider_configuration_keeps_room_safe_and_tokenless(
     db_session: Session,
 ) -> None:
     _, application = create_scored_application(db_session)
@@ -189,33 +83,148 @@ async def test_interview_lifecycle_is_persisted_and_timestamps_are_write_once(
         application.id,
         future_payload(),
     )
+    service = build_room_service(db_session, FakeVideoAdapter(configured=False))
+
+    room = service.get_interviewer_room(scheduled.id)
+
+    assert room.provider_configured is False
+    assert room.join_allowed is False
+    assert room.participant_token is None
+    assert room.livekit_url is None
+    assert room.provider_error_message is not None
+
+
+def test_room_lookup_rejects_unknown_invitation_and_interview(db_session: Session) -> None:
     service = build_room_service(db_session)
-    ticket = service.issue_ticket(scheduled.id, InterviewParticipantRole.CANDIDATE)
-    started_at = datetime(2026, 10, 13, 10, 0, tzinfo=UTC)
-    later = started_at + timedelta(minutes=30)
 
-    assert service.participant_joined(scheduled.id) == InterviewStatus.WAITING
-    started = service.mark_active(scheduled.id, now=started_at)
-    restarted = service.mark_active(scheduled.id, now=later)
+    with pytest.raises(InterviewNotFoundError):
+        service.get_candidate_room("not-a-valid-invitation")
+    with pytest.raises(InterviewNotFoundError):
+        service.get_interviewer_room(uuid4())
 
-    assert started.status == InterviewStatus.ACTIVE
-    assert restarted.started_at == started.started_at
-    with pytest.raises(InterviewLifecycleError, match="Only the interviewer"):
-        service.end_interview(scheduled.id, InterviewParticipantRole.CANDIDATE)
 
-    ended = service.end_interview(
-        scheduled.id,
-        InterviewParticipantRole.INTERVIEWER,
-        now=later,
+@pytest.mark.asyncio
+async def test_provider_verified_presence_preserves_lifecycle_and_started_at(
+    db_session: Session,
+) -> None:
+    _, application = create_scored_application(db_session)
+    scheduled = await build_service(db_session, FakeEmailAdapter()).schedule(
+        application.id,
+        future_payload(),
     )
-    ended_again = service.end_interview(
+    adapter = FakeVideoAdapter()
+    service = build_room_service(db_session, adapter)
+    room_name = video_room_name(scheduled.id)
+    candidate_identity = video_participant_identity(
         scheduled.id,
-        InterviewParticipantRole.INTERVIEWER,
-        now=later + timedelta(minutes=1),
+        VideoParticipantRole.CANDIDATE,
+    )
+    interviewer_identity = video_participant_identity(
+        scheduled.id,
+        VideoParticipantRole.INTERVIEWER,
+    )
+
+    adapter.participants[room_name] = [VideoParticipant(candidate_identity)]
+    waiting = await service.sync_interviewer_lifecycle(scheduled.id)
+    assert waiting.status == InterviewStatus.WAITING
+    assert waiting.started_at is None
+
+    adapter.participants[room_name] = [
+        VideoParticipant(candidate_identity),
+        VideoParticipant(interviewer_identity),
+        VideoParticipant(f"agent_{scheduled.id.hex}"),
+    ]
+    active = await service.sync_interviewer_lifecycle(scheduled.id)
+    assert active.status == InterviewStatus.ACTIVE
+    assert active.started_at is not None
+    started_at = active.started_at
+
+    adapter.participants[room_name] = [VideoParticipant(interviewer_identity)]
+    reconnected = await service.sync_interviewer_lifecycle(scheduled.id)
+    assert reconnected.status == InterviewStatus.ACTIVE
+    assert reconnected.started_at == started_at
+
+
+@pytest.mark.asyncio
+async def test_service_participant_does_not_activate_interview(db_session: Session) -> None:
+    _, application = create_scored_application(db_session)
+    scheduled = await build_service(db_session, FakeEmailAdapter()).schedule(
+        application.id,
+        future_payload(),
+    )
+    adapter = FakeVideoAdapter()
+    adapter.participants[video_room_name(scheduled.id)] = [
+        VideoParticipant(f"agent_{scheduled.id.hex}")
+    ]
+
+    unchanged = await build_room_service(db_session, adapter).sync_interviewer_lifecycle(
+        scheduled.id
+    )
+
+    assert unchanged.status == InterviewStatus.SCHEDULED
+    assert unchanged.started_at is None
+
+
+@pytest.mark.asyncio
+async def test_interviewer_end_is_write_once_and_terminates_provider_room(
+    db_session: Session,
+) -> None:
+    _, application = create_scored_application(db_session)
+    scheduled = await build_service(db_session, FakeEmailAdapter()).schedule(
+        application.id,
+        future_payload(),
+    )
+    adapter = FakeVideoAdapter()
+    service = build_room_service(db_session, adapter)
+    adapter.participants[video_room_name(scheduled.id)] = [
+        VideoParticipant(video_participant_identity(scheduled.id, VideoParticipantRole.CANDIDATE))
+    ]
+    await service.sync_interviewer_lifecycle(scheduled.id)
+    ended_at = datetime(2026, 10, 13, 10, 0, tzinfo=UTC)
+
+    with pytest.raises(InterviewLifecycleError, match="Only the interviewer"):
+        await service.end_interview(scheduled.id, VideoParticipantRole.CANDIDATE)
+
+    ended = await service.end_interview(
+        scheduled.id,
+        VideoParticipantRole.INTERVIEWER,
+        now=ended_at,
+    )
+    ended_again = await service.end_interview(
+        scheduled.id,
+        VideoParticipantRole.INTERVIEWER,
+        now=ended_at + timedelta(minutes=1),
     )
 
     assert ended.status == InterviewStatus.ENDED
     assert ended_again.ended_at == ended.ended_at
-    assert service.get_interviewer_room(scheduled.id).join_allowed is False
-    with pytest.raises(InterviewEndedError):
-        service.authenticate_ticket(ticket, scheduled.id)
+    assert ended_again.ended_at is not None
+    assert adapter.terminated_rooms == [video_room_name(scheduled.id)]
+    assert service.get_interviewer_room(scheduled.id).participant_token is None
+    assert (await service.sync_interviewer_lifecycle(scheduled.id)).status == InterviewStatus.ENDED
+
+
+@pytest.mark.asyncio
+async def test_provider_cleanup_failure_does_not_reactivate_ended_interview(
+    db_session: Session,
+) -> None:
+    _, application = create_scored_application(db_session)
+    scheduled = await build_service(db_session, FakeEmailAdapter()).schedule(
+        application.id,
+        future_payload(),
+    )
+    adapter = FakeVideoAdapter()
+    service = build_room_service(db_session, adapter)
+    adapter.participants[video_room_name(scheduled.id)] = [
+        VideoParticipant(video_participant_identity(scheduled.id, VideoParticipantRole.INTERVIEWER))
+    ]
+    await service.sync_interviewer_lifecycle(scheduled.id)
+    adapter.terminate_error = VideoProviderError("synthetic provider failure")
+
+    with pytest.raises(InterviewProviderCleanupError):
+        await service.end_interview(scheduled.id, VideoParticipantRole.INTERVIEWER)
+
+    persisted = db_session.get(InterviewSession, scheduled.id)
+    assert persisted is not None
+    assert persisted.status == InterviewStatus.ENDED
+    assert persisted.ended_at is not None

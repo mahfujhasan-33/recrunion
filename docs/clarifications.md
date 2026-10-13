@@ -52,19 +52,20 @@ external video room; the persisted `InterviewSession` is the logical room. This 
 not implement those components. Final decision communication, rejection notification, and
 shortlist notification where applicable remain in M15.
 
-## Approved F3/F4 implementation architecture change
+## Approved F3/F4 implementation architecture changes
 
-The original F3 implementation baseline was Daily.co. The approved implementation is native
-two-party browser WebRTC for exactly one interviewer and one candidate. FastAPI WebSocket handles
-SDP offer/answer, ICE candidates, and participant/session presence only. Media remains between the
-browser peers, using configured STUN/TURN connectivity with coturn as the TURN server.
-FastAPI must not proxy media, and no SFU, group-conferencing platform, or video SaaS is planned.
+The original F3 implementation baseline was Daily.co. Native two-party browser WebRTC with
+FastAPI signalling and coturn was then approved, implemented, and committed as an intermediate
+checkpoint. The final selected F3 transport is LiveKit Cloud behind provider-neutral
+`VideoAdapter`. LiveKit owns signalling, WebRTC, ICE/STUN/TURN, NAT traversal, and reconnect.
+RecrUnion preserves its custom UI, candidate capability link, authorization, logical
+`InterviewSession`, lifecycle, and timestamps. FastAPI creates short-lived room-scoped tokens and
+verifies provider presence; it never proxies or records media.
 
-The original F4 implementation baseline was local faster-whisper CPU transcription. The approved
-implementation is AssemblyAI Universal Streaming behind the provider-neutral `STTAdapter`.
-Participant browsers send separate transcription audio streams through a session-scoped RecrUnion
-STT WebSocket, so authenticated connection context supplies deterministic `CANDIDATE` or
-`INTERVIEWER` speaker identity. AssemblyAI diarization is not a core requirement.
+The original F4 implementation baseline was local faster-whisper CPU transcription. The current
+planned M11 direction is a LiveKit Cloud hosted transcription agent using AssemblyAI behind the
+provider-neutral `STTAdapter`. Deterministic opaque candidate/interviewer identities allow the
+future agent to attribute tracks without making provider diarization a core requirement.
 
 The normalized `TranscriptEvent` contract contains interview ID, participant role, start/end
 timestamps, text, final/partial state, nullable confidence, and only necessary internal provider
@@ -72,10 +73,12 @@ metadata. Interview/session models, browser capture, transcript storage/UI, spea
 F5, and F6 remain provider-neutral. Raw audio is sent to the configured STT provider only for live
 transcription and is not stored by default.
 
-Formal F3 and F4 acceptance behavior is unchanged. The reviewed WBS is not rewritten: its Daily and
-CPU-STT lines record the previous implementation assumptions. ADR-016 supersedes those provider
-choices while retaining the WBS's lifecycle, cross-network, controls, persistence, reconnect,
-speaker/timestamp, and live-transcript work.
+Formal F3 and F4 acceptance behavior is unchanged. The reviewed WBS is not rewritten: its Daily
+and CPU-STT lines record original assumptions. ADR-021 supersedes the active F3 portions of
+ADR-016/019/020 while retaining lifecycle, cross-network, controls, persistence, reconnect,
+speaker/timestamp, and live-transcript requirements. M10-LK implementation is complete only at the
+offline level; formal F3 remains partial until live different-device/different-network audio and
+video are demonstrated.
 
 ## WBS AI-use exception
 The BID says WBS/SRS/workflow diagram should be completed without AI support. The project owner/user has stated that PM permission was later granted to use AI for the WBS. Retain the approval evidence if available.
@@ -146,13 +149,13 @@ The M1/M2 workflow is also available through one persistent recruiter-assistant 
 Gemini behind `LLMAdapter`. Use only sample/synthetic candidate data.
 
 ## Video
-Browser-native WebRTC for one interviewer and one candidate. FastAPI WebSocket provides signalling
-only; STUN/TURN with coturn supports cross-network connectivity. RecrUnion owns interview
-session/auth/status/transcript/analysis. Raw recording is off by default.
+LiveKit Cloud behind `VideoAdapter` for one interviewer and one candidate. RecrUnion owns
+authorization and interview lifecycle; LiveKit owns realtime media transport and reconnect. Raw
+recording and Egress are disabled. Live cross-network acceptance remains pending.
 
 ## STT
-AssemblyAI Universal Streaming behind provider-neutral `STTAdapter`. Separate participant streams
-provide speaker identity. RecrUnion persists normalized transcript segments, not raw audio.
+Planned M11: a LiveKit hosted agent uses AssemblyAI behind provider-neutral `STTAdapter` and
+returns normalized transcript events. M10-LK does not implement STT or persist transcripts.
 
 ## Background work
 Python worker + PostgreSQL `processing_jobs`. No Redis/Celery.
@@ -180,7 +183,7 @@ F7–F10 remain optional and must wait until F1–F6 + F11 are working.
 
 ## Confirm at kickoff
 - exact Gemini model/quota
-- WebRTC STUN/TURN endpoints and coturn credentials for cross-network verification
+- LiveKit Cloud credentials and quota, plus different-device/network acceptance availability
 - AssemblyAI API key and Universal Streaming availability/limits
 - Bluesky demo account/app password
 - SMTP account

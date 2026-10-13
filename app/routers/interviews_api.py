@@ -3,18 +3,25 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies import get_interview_scheduling_service
+from app.adapters.video import VideoParticipantRole
+from app.dependencies import get_interview_room_service, get_interview_scheduling_service
 from app.schemas.interviews import (
+    InterviewLifecycleResponse,
     InterviewResponse,
     InterviewScheduleRequest,
     InterviewSchedulingDefaults,
 )
+from app.services.interview_rooms import InterviewRoomService
 from app.services.interview_scheduling import InterviewSchedulingService
 
 router = APIRouter(tags=["interviews"])
 InterviewSchedulingServiceDependency = Annotated[
     InterviewSchedulingService,
     Depends(get_interview_scheduling_service),
+]
+InterviewRoomServiceDependency = Annotated[
+    InterviewRoomService,
+    Depends(get_interview_room_service),
 ]
 
 
@@ -67,3 +74,37 @@ async def resend_interview_invitation(
     service: InterviewSchedulingServiceDependency,
 ) -> InterviewResponse:
     return await service.resend_invitation(interview_id)
+
+
+@router.post(
+    "/api/v1/interviews/{interview_id}/lifecycle-sync",
+    response_model=InterviewLifecycleResponse,
+)
+async def sync_interviewer_lifecycle(
+    interview_id: UUID,
+    service: InterviewRoomServiceDependency,
+) -> InterviewLifecycleResponse:
+    interview = await service.sync_interviewer_lifecycle(interview_id)
+    return InterviewLifecycleResponse(
+        interview_id=interview.id,
+        status=interview.status,
+        started_at=interview.started_at,
+        ended_at=interview.ended_at,
+    )
+
+
+@router.post(
+    "/api/v1/interviews/{interview_id}/end",
+    response_model=InterviewLifecycleResponse,
+)
+async def end_interview(
+    interview_id: UUID,
+    service: InterviewRoomServiceDependency,
+) -> InterviewLifecycleResponse:
+    interview = await service.end_interview(interview_id, VideoParticipantRole.INTERVIEWER)
+    return InterviewLifecycleResponse(
+        interview_id=interview.id,
+        status=interview.status,
+        started_at=interview.started_at,
+        ended_at=interview.ended_at,
+    )

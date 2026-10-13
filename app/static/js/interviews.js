@@ -84,13 +84,20 @@ function renderInterviews(interviews) {
     const copy = document.createElement("button");
     copy.type = "button";
     copy.className = "button secondary compact";
-    copy.dataset.copyInterviewLink = interview.candidate_join_url;
-    copy.textContent = "Copy link";
+    copy.textContent = interview.candidate_join_url ? "Copy link" : "Link unavailable";
+    copy.disabled = !interview.candidate_join_url;
+    if (interview.candidate_join_url) {
+      copy.dataset.copyInterviewLink = interview.candidate_join_url;
+    } else {
+      copy.title = "Resend the invitation to issue a link using the current security settings.";
+    }
     const resend = document.createElement("button");
     resend.type = "button";
     resend.className = "button compact";
     resend.dataset.resendInterviewId = interview.id;
-    resend.textContent = interview.invitation_status === "SENT" ? "Resend invitation" : "Retry invitation";
+    resend.textContent = interview.candidate_join_url && interview.invitation_status === "SENT"
+      ? "Resend invitation"
+      : "Issue new invitation";
     actions.append(openRoom, copy, resend);
     interviewsBody.append(row);
   });
