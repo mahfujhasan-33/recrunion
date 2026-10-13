@@ -57,7 +57,7 @@ shortlist notification where applicable remain in M15.
 The original F3 implementation baseline was Daily.co. The approved implementation is native
 two-party browser WebRTC for exactly one interviewer and one candidate. FastAPI WebSocket handles
 SDP offer/answer, ICE candidates, and participant/session presence only. Media remains between the
-browser peers, using configured STUN/TURN connectivity with coturn planned as the TURN server.
+browser peers, using configured STUN/TURN connectivity with coturn as the TURN server.
 FastAPI must not proxy media, and no SFU, group-conferencing platform, or video SaaS is planned.
 
 The original F4 implementation baseline was local faster-whisper CPU transcription. The approved
@@ -147,7 +147,7 @@ Gemini behind `LLMAdapter`. Use only sample/synthetic candidate data.
 
 ## Video
 Browser-native WebRTC for one interviewer and one candidate. FastAPI WebSocket provides signalling
-only; STUN/TURN with planned coturn supports cross-network connectivity. RecrUnion owns interview
+only; STUN/TURN with coturn supports cross-network connectivity. RecrUnion owns interview
 session/auth/status/transcript/analysis. Raw recording is off by default.
 
 ## STT

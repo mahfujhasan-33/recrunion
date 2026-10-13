@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
 from app.schemas.interview_signaling import InterviewParticipantRole
 
@@ -14,6 +14,7 @@ class DuplicateParticipantError(ValueError):
 @dataclass
 class SignalingRoom:
     participants: dict[InterviewParticipantRole, WebSocket] = field(default_factory=dict)
+    connected_roles: set[InterviewParticipantRole] = field(default_factory=set)
 
 
 class SignalingHub:
@@ -36,6 +37,7 @@ class SignalingHub:
             peer_role = _peer_role(role)
             peer = room.participants.get(peer_role)
             room.participants[role] = socket
+            room.connected_roles.clear()
 
         await socket.send_json(
             {
@@ -49,6 +51,38 @@ class SignalingHub:
             await peer.send_json({"type": "peer-joined", "role": role.value})
             await socket.send_json({"type": "peer-joined", "role": peer_role.value})
         return peer is not None
+
+    async def mark_peer_connected(
+        self,
+        interview_id: UUID,
+        role: InterviewParticipantRole,
+        socket: WebSocket,
+    ) -> bool:
+        """Confirm both current role sockets have established WebRTC."""
+
+        async with self._lock:
+            room = self._rooms.get(interview_id)
+            if room is None or room.participants.get(role) is not socket:
+                return False
+            room.connected_roles.add(role)
+            return all(
+                expected in room.connected_roles and expected in room.participants
+                for expected in InterviewParticipantRole
+            )
+
+    async def broadcast(
+        self,
+        interview_id: UUID,
+        message: dict[str, object],
+    ) -> None:
+        async with self._lock:
+            room = self._rooms.get(interview_id)
+            sockets = list(room.participants.values()) if room is not None else []
+        for socket in sockets:
+            try:
+                await socket.send_json(message)
+            except (RuntimeError, WebSocketDisconnect):
+                continue
 
     async def relay_to_peer(
         self,
@@ -77,6 +111,7 @@ class SignalingHub:
             if room is None or room.participants.get(role) is not socket:
                 return
             del room.participants[role]
+            room.connected_roles.discard(role)
             peer = room.participants.get(_peer_role(role))
             if not room.participants:
                 self._rooms.pop(interview_id, None)
@@ -89,10 +124,13 @@ class SignalingHub:
         role: InterviewParticipantRole,
     ) -> None:
         async with self._lock:
-            room = self._rooms.get(interview_id)
+            room = self._rooms.pop(interview_id, None)
             sockets = list(room.participants.values()) if room is not None else []
         for socket in sockets:
-            await socket.send_json({"type": "call-ended", "ended_by": role.value})
+            try:
+                await socket.send_json({"type": "call-ended", "ended_by": role.value})
+            except (RuntimeError, WebSocketDisconnect):
+                continue
 
     async def participant_count(self, interview_id: UUID) -> int:
         async with self._lock:

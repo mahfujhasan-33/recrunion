@@ -213,6 +213,10 @@ class InterviewSchedulingService:
             invitation_error_code=interview.invitation_error_code,
             invitation_error_message=interview.invitation_error_message,
             candidate_join_url=self._join_url(token),
+            started_at=(
+                ensure_utc(interview.started_at) if interview.started_at is not None else None
+            ),
+            ended_at=(ensure_utc(interview.ended_at) if interview.ended_at is not None else None),
             created_at=ensure_utc(interview.created_at),
             updated_at=ensure_utc(interview.updated_at),
         )

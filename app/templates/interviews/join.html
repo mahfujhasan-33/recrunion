@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ room.job_title }} interview · RecrUnion</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20261013-m10b-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261013-m10c-1">
   </head>
   <body class="candidate-interview-page">
     <main class="interview-room-shell">
@@ -18,7 +18,7 @@
           <div><dt>Scheduled</dt><dd id="candidate-interview-time">{{ room.scheduled_start_at.isoformat() }}</dd></div>
           <div><dt>Timezone</dt><dd>{{ room.timezone }}</dd></div>
           <div><dt>Duration</dt><dd>{{ room.duration_minutes }} minutes</dd></div>
-          <div><dt>Status</dt><dd><span class="status-badge">{{ room.status.value }}</span></dd></div>
+          <div><dt>Status</dt><dd><span id="interview-lifecycle-status" class="status-badge">{{ room.status.value }}</span></dd></div>
         </dl>
       </header>
 
@@ -32,6 +32,7 @@
         <div class="actions">
           <button id="prepare-interview-media" class="button secondary" type="button">Check camera &amp; microphone</button>
           <button id="join-interview-room" class="button" type="button" disabled>Join interview</button>
+          <button id="rejoin-interview-room" class="button" type="button" hidden>Rejoin interview</button>
         </div>
       </section>
 
@@ -53,9 +54,9 @@
         <button id="toggle-interview-camera" class="button secondary" type="button" disabled>Turn camera off</button>
         <button id="leave-interview-room" class="button danger" type="button" disabled>{% if room.role.value == 'INTERVIEWER' %}End interview{% else %}Leave interview{% endif %}</button>
       </section>
-      <p id="interview-room-status" class="interview-room-status" role="status" aria-live="polite">Run the device check when you are ready.</p>
+      <p id="interview-room-status" class="interview-room-status" role="status" aria-live="polite">{% if room.join_allowed %}Run the device check when you are ready.{% else %}This interview has ended.{% endif %}</p>
     </main>
     <script id="interview-room-config" type="application/json">{{ room_config | tojson }}</script>
-    <script src="/static/js/interview_room.js?v=20261013-m10b-1" defer></script>
+    <script src="/static/js/interview_room.js?v=20261013-m10c-1" defer></script>
   </body>
 </html>

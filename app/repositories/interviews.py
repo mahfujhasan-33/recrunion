@@ -33,6 +33,11 @@ class InterviewRepository:
     def get(self, interview_id: UUID) -> InterviewSession | None:
         return self._session.get(InterviewSession, interview_id)
 
+    def get_for_update(self, interview_id: UUID) -> InterviewSession | None:
+        return self._session.scalar(
+            select(InterviewSession).where(InterviewSession.id == interview_id).with_for_update()
+        )
+
     def get_for_application(self, application_id: UUID) -> InterviewSession | None:
         return self._session.scalar(
             select(InterviewSession).where(InterviewSession.application_id == application_id)

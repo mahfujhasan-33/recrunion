@@ -119,6 +119,9 @@ def test_websocket_authentication_and_offer_answer_ice_relay(
             assert ice["type"] == "ice-candidate"
             assert ice["candidate"]["candidate"] == "candidate:synthetic"
 
+            candidate.send_json({"type": "ice-restart-request"})
+            assert interviewer.receive_json() == {"type": "ice-restart-request"}
+
             candidate.send_json({"type": "leave"})
             assert interviewer.receive_json() == {
                 "type": "peer-left",
@@ -148,6 +151,35 @@ def test_websocket_rejects_invalid_wrong_scope_and_expired_tickets(
             with client.websocket_connect(f"/ws/interviews/{interview.id}/signal") as socket:
                 socket.send_json({"type": "authenticate", "ticket": supplied_ticket})
                 assert socket.receive_json()["code"] == "AUTHENTICATION_FAILED"
+
+
+def test_ended_interview_rejects_signaling_and_renders_read_only_room(
+    configured_application: FastAPI,
+    database_engine: Engine,
+) -> None:
+    with Session(database_engine, expire_on_commit=False) as session:
+        interview = create_interview(session)
+        interview.status = InterviewStatus.ENDED
+        interview.ended_at = datetime.now(UTC)
+        session.commit()
+
+    path = f"/ws/interviews/{interview.id}/signal"
+    with TestClient(configured_application) as client:
+        with client.websocket_connect(path) as socket:
+            socket.send_json(
+                {
+                    "type": "authenticate",
+                    "ticket": ticket(interview.id, InterviewParticipantRole.CANDIDATE),
+                }
+            )
+            assert socket.receive_json()["code"] == "INTERVIEW_ENDED"
+
+        room = client.get(f"/interviews/{interview.id}/room")
+
+    assert room.status_code == 200
+    assert "This interview has ended." in room.text
+    assert '"signaling_ticket": null' in room.text
+    assert '"ice_servers": []' in room.text
 
 
 def test_websocket_rejects_duplicate_role_and_role_violation(
@@ -246,6 +278,66 @@ def test_interviewer_end_call_notifies_both_participants(
                 "type": "call-ended",
                 "ended_by": "INTERVIEWER",
             }
+
+    with Session(database_engine) as session:
+        persisted = session.get(InterviewSession, interview.id)
+        assert persisted is not None
+        assert persisted.status == InterviewStatus.ENDED
+        assert persisted.ended_at is not None
+
+
+def test_connected_peers_activate_once_and_candidate_can_reconnect(
+    configured_application: FastAPI,
+    database_engine: Engine,
+) -> None:
+    with Session(database_engine, expire_on_commit=False) as session:
+        interview = create_interview(session)
+    path = f"/ws/interviews/{interview.id}/signal"
+
+    with (
+        TestClient(configured_application) as client,
+        client.websocket_connect(path) as interviewer,
+    ):
+        interviewer.send_json(
+            {
+                "type": "authenticate",
+                "ticket": ticket(interview.id, InterviewParticipantRole.INTERVIEWER),
+            }
+        )
+        interviewer.receive_json()
+        with client.websocket_connect(path) as candidate:
+            candidate.send_json(
+                {
+                    "type": "authenticate",
+                    "ticket": ticket(interview.id, InterviewParticipantRole.CANDIDATE),
+                }
+            )
+            candidate.receive_json()
+            interviewer.receive_json()
+            candidate.receive_json()
+            interviewer.send_json({"type": "peer-connected"})
+            candidate.send_json({"type": "peer-connected"})
+            assert interviewer.receive_json()["type"] == "interview-active"
+            assert candidate.receive_json()["type"] == "interview-active"
+            candidate.send_json({"type": "leave"})
+            assert interviewer.receive_json()["type"] == "peer-left"
+
+        with client.websocket_connect(path) as reconnected:
+            reconnected.send_json(
+                {
+                    "type": "authenticate",
+                    "ticket": ticket(interview.id, InterviewParticipantRole.CANDIDATE),
+                }
+            )
+            assert reconnected.receive_json()["type"] == "authenticated"
+            assert interviewer.receive_json()["type"] == "peer-joined"
+            assert reconnected.receive_json()["type"] == "peer-joined"
+
+    with Session(database_engine) as session:
+        persisted = session.get(InterviewSession, interview.id)
+        assert persisted is not None
+        assert persisted.status == InterviewStatus.ACTIVE
+        assert persisted.started_at is not None
 
 
 def test_recruiter_and_candidate_room_pages_render_safe_config(

@@ -14,7 +14,7 @@ The application may process:
 ## External services
 The current architecture may send limited data to:
 - **Gemini API** — selected structured job/CV/transcript text needed for AI reasoning
-- **STUN/TURN infrastructure (planned coturn)** — WebRTC connectivity metadata and relayed encrypted interview media only when direct peer connectivity is unavailable
+- **STUN/TURN infrastructure (coturn)** — WebRTC connectivity metadata and relayed encrypted interview media only when direct peer connectivity is unavailable
 - **AssemblyAI Universal Streaming** — separate candidate/interviewer audio streams for live transcription
 - **Bluesky** — approved public job-post content
 - **SMTP provider** — recipient address and notification message

@@ -44,9 +44,10 @@ Current containers:
 1. `app`
 2. `worker`
 3. `postgres`
+4. `coturn`
 
-`coturn` is planned as a later additional Docker Compose service for TURN relay verification. STUN
-and TURN configuration support cross-network peer connectivity. FastAPI performs signalling only;
+`coturn` provides the project-controlled TURN relay when direct connectivity is unavailable. STUN
+and environment-provided TURN configuration support cross-network peer connectivity. FastAPI performs signalling only;
 it never proxies audio/video media. The F3 scope is exactly one interviewer and one candidate, with
 no SFU, group conferencing, Daily.co, LiveKit, Jitsi, Janus, or mediasoup.
 
@@ -168,9 +169,10 @@ invitation. Calendar integration remains optional and deferred.
 
 M10B uses browser `getUserMedia()` and `RTCPeerConnection` for local preview, peer negotiation,
 remote rendering, mute, camera toggle, and end-call controls. A FastAPI WebSocket carries only SDP
-offers/answers, ICE candidates, and session presence. M10C owns reconnect handling, ICE/network
-failure behavior, waiting/active/ended persistence, cross-network verification, and coturn
-verification. Raw media travels directly peer-to-peer when possible or through TURN when required;
+offers/answers, ICE candidates, and session presence. M10C adds bounded signalling reconnect,
+deterministic interviewer-led ICE restart, `SCHEDULED`/`WAITING`/`ACTIVE`/`ENDED` persistence, and
+coturn configuration. Physical cross-network and forced-relay verification remain an explicit
+deployment acceptance gate. Raw media travels directly peer-to-peer when possible or through TURN when required;
 it never traverses FastAPI.
 
 ## STT

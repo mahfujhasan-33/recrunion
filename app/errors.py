@@ -287,6 +287,18 @@ class InterviewConfigurationError(RecrUnionError):
     status_code = 503
 
 
+class InterviewLifecycleError(RecrUnionError):
+    code = "INTERVIEW_LIFECYCLE_INVALID"
+    status_code = 409
+
+
+class InterviewEndedError(InterviewLifecycleError):
+    code = "INTERVIEW_ENDED"
+
+    def __init__(self) -> None:
+        super().__init__("This interview has ended and cannot be rejoined.")
+
+
 class DriveError(RecrUnionError):
     code = "DRIVE_UNAVAILABLE"
     status_code = 502

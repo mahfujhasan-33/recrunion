@@ -48,7 +48,11 @@ from app.services.company_documents import CompanyDocumentService
 from app.services.deletions import DeletionService
 from app.services.drive_archive import DriveArchiveService
 from app.services.email_intake import EmailApplicationIntakeService
-from app.services.interview_rooms import InterviewRoomService, parse_stun_urls
+from app.services.interview_rooms import (
+    InterviewRoomService,
+    parse_stun_urls,
+    parse_turn_urls,
+)
 from app.services.interview_scheduling import InterviewSchedulingService
 from app.services.job_descriptions import JobDescriptionService
 from app.services.job_publication_content import JobPublicationContentBuilder
@@ -194,6 +198,10 @@ def get_interview_room_service(
         token_secret=settings.jwt_secret,
         signaling_ticket_ttl_seconds=settings.webrtc_signaling_ticket_ttl_seconds,
         stun_urls=parse_stun_urls(settings.webrtc_stun_urls),
+        turn_urls=parse_turn_urls(settings.turn_url),
+        turn_username=settings.turn_username,
+        turn_password=settings.turn_password,
+        ice_transport_policy=settings.webrtc_ice_transport_policy,
     )
 
 

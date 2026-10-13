@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -45,6 +46,8 @@ class InterviewResponse(BaseModel):
     invitation_error_code: str | None
     invitation_error_message: str | None
     candidate_join_url: str
+    started_at: datetime | None
+    ended_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -59,6 +62,8 @@ class CandidateInterviewView(BaseModel):
 
 class IceServerConfiguration(BaseModel):
     urls: list[str]
+    username: str | None = None
+    credential: str | None = None
 
 
 class InterviewRoomView(BaseModel):
@@ -70,5 +75,9 @@ class InterviewRoomView(BaseModel):
     scheduled_start_at: datetime
     duration_minutes: int
     timezone: str
-    signaling_ticket: str
+    signaling_ticket: str | None
     ice_servers: list[IceServerConfiguration]
+    ice_transport_policy: Literal["all", "relay"] = "all"
+    join_allowed: bool = True
+    started_at: datetime | None = None
+    ended_at: datetime | None = None

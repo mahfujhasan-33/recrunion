@@ -76,13 +76,27 @@ class EndCallSignal(BaseModel):
     type: Literal["end-call"]
 
 
+class PeerConnectedSignal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["peer-connected"]
+
+
+class IceRestartRequestSignal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["ice-restart-request"]
+
+
 ClientSignal = Annotated[
     AuthenticateSignal
     | OfferSignal
     | AnswerSignal
     | IceCandidateSignal
     | LeaveSignal
-    | EndCallSignal,
+    | EndCallSignal
+    | PeerConnectedSignal
+    | IceRestartRequestSignal,
     Field(discriminator="type"),
 ]
 CLIENT_SIGNAL_ADAPTER = TypeAdapter(ClientSignal)

@@ -9,15 +9,18 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from app.dependencies import get_interview_room_service
+from app.errors import InterviewEndedError, InterviewLifecycleError
 from app.schemas.interview_signaling import (
     CLIENT_SIGNAL_ADAPTER,
     AnswerSignal,
     AuthenticateSignal,
     EndCallSignal,
     IceCandidateSignal,
+    IceRestartRequestSignal,
     InterviewParticipantRole,
     LeaveSignal,
     OfferSignal,
+    PeerConnectedSignal,
 )
 from app.services.interview_rooms import InterviewRoomService, SignalingTicketError
 from app.services.interview_signaling import DuplicateParticipantError, SignalingHub
@@ -49,6 +52,7 @@ async def interview_signaling_socket(
         role = claims.role
         await hub.join(interview_id, role, websocket)
         joined = True
+        service.participant_joined(interview_id)
 
         while True:
             payload = await _receive_json(websocket)
@@ -73,16 +77,34 @@ async def interview_signaling_socket(
                 await websocket.close(code=1000)
                 break
             if isinstance(signal, EndCallSignal):
-                await hub.end_call(interview_id, role)
-                await hub.leave(
+                service.end_interview(interview_id, role)
+                await hub.end_call(
                     interview_id,
                     role,
-                    websocket,
-                    notify_peer=False,
                 )
                 joined = False
                 await websocket.close(code=1000)
                 break
+            if isinstance(signal, PeerConnectedSignal):
+                both_connected = await hub.mark_peer_connected(
+                    interview_id,
+                    role,
+                    websocket,
+                )
+                if both_connected:
+                    interview = service.mark_active(interview_id)
+                    await hub.broadcast(
+                        interview_id,
+                        {
+                            "type": "interview-active",
+                            "started_at": (
+                                interview.started_at.isoformat()
+                                if interview.started_at is not None
+                                else None
+                            ),
+                        },
+                    )
+                continue
             relayed = await hub.relay_to_peer(
                 interview_id,
                 role,
@@ -107,6 +129,18 @@ async def interview_signaling_socket(
             websocket,
             "AUTHENTICATION_FAILED",
             "The signalling ticket is invalid or expired.",
+        )
+    except InterviewEndedError:
+        await _reject(
+            websocket,
+            "INTERVIEW_ENDED",
+            "This interview has ended and cannot be rejoined.",
+        )
+    except InterviewLifecycleError:
+        await _reject(
+            websocket,
+            "INTERVIEW_STATE_INVALID",
+            "The interview is not available for this action.",
         )
     except TimeoutError:
         await _reject(
@@ -164,7 +198,10 @@ async def _receive_json(websocket: WebSocket) -> object:
 
 
 def _is_allowed(role: InterviewParticipantRole, signal: object) -> bool:
-    if isinstance(signal, IceCandidateSignal | LeaveSignal):
+    if isinstance(
+        signal,
+        IceCandidateSignal | LeaveSignal | PeerConnectedSignal | IceRestartRequestSignal,
+    ):
         return True
     if isinstance(signal, OfferSignal | EndCallSignal):
         return role == InterviewParticipantRole.INTERVIEWER

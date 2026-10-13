@@ -20,6 +20,9 @@ from app.database import Base
 
 class InterviewStatus(StrEnum):
     SCHEDULED = "SCHEDULED"
+    WAITING = "WAITING"
+    ACTIVE = "ACTIVE"
+    ENDED = "ENDED"
 
 
 class InvitationStatus(StrEnum):

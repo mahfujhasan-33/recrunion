@@ -8,12 +8,14 @@ from pydantic import ValidationError
 
 from app.errors import (
     InterviewConfigurationError,
+    InterviewEndedError,
+    InterviewLifecycleError,
     InterviewNotFoundError,
     InterviewSchedulingError,
     JobNotFoundError,
 )
 from app.models.applications import JobApplication
-from app.models.interviews import InterviewSession
+from app.models.interviews import InterviewSession, InterviewStatus
 from app.repositories.interviews import InterviewRepository
 from app.repositories.jobs import JobRepository
 from app.schemas.interview_signaling import (
@@ -113,6 +115,10 @@ class InterviewRoomService:
         token_secret: str,
         signaling_ticket_ttl_seconds: int,
         stun_urls: list[str],
+        turn_urls: list[str] | None = None,
+        turn_username: str = "",
+        turn_password: str = "",
+        ice_transport_policy: str = "all",
     ) -> None:
         self._interviews = interview_repository
         self._jobs = job_repository
@@ -120,7 +126,14 @@ class InterviewRoomService:
             token_secret,
             signaling_ticket_ttl_seconds,
         )
-        self._ice_servers = [IceServerConfiguration(urls=stun_urls)] if stun_urls else []
+        self._ice_servers = build_ice_server_configuration(
+            stun_urls,
+            turn_urls or [],
+            turn_username,
+            turn_password,
+            ice_transport_policy,
+        )
+        self._ice_transport_policy = ice_transport_policy
 
     def get_candidate_room(self, invitation_token: str) -> InterviewRoomView:
         if not invitation_token or len(invitation_token) > 512:
@@ -143,7 +156,8 @@ class InterviewRoomService:
             ticket,
             expected_interview_id=expected_interview_id,
         )
-        self._get_interview(claims.interview_id)
+        interview = self._get_interview(claims.interview_id)
+        self._ensure_joinable(interview)
         return claims
 
     def issue_ticket(
@@ -153,8 +167,59 @@ class InterviewRoomService:
         *,
         now: datetime | None = None,
     ) -> str:
-        self._get_interview(interview_id)
+        interview = self._get_interview(interview_id)
+        self._ensure_joinable(interview)
         return self._tickets.issue(interview_id, role, now=now)
+
+    def participant_joined(self, interview_id: UUID) -> InterviewStatus:
+        """Persist the first authorized room entry without starting the call."""
+
+        interview = self._get_interview_for_update(interview_id)
+        self._ensure_joinable(interview)
+        if interview.status == InterviewStatus.SCHEDULED:
+            interview.status = InterviewStatus.WAITING
+            self._interviews.save(interview)
+        return interview.status
+
+    def mark_active(
+        self,
+        interview_id: UUID,
+        *,
+        now: datetime | None = None,
+    ) -> InterviewSession:
+        """Start an interview after both authenticated peers confirm connection."""
+
+        interview = self._get_interview_for_update(interview_id)
+        self._ensure_joinable(interview)
+        if interview.status == InterviewStatus.SCHEDULED:
+            raise InterviewLifecycleError("Participants must join before the interview can start.")
+        if interview.status == InterviewStatus.WAITING:
+            interview.status = InterviewStatus.ACTIVE
+            if interview.started_at is None:
+                interview.started_at = now or datetime.now(UTC)
+            self._interviews.save(interview)
+        return interview
+
+    def end_interview(
+        self,
+        interview_id: UUID,
+        role: InterviewParticipantRole,
+        *,
+        now: datetime | None = None,
+    ) -> InterviewSession:
+        """Persist the interviewer-controlled end of a joined interview."""
+
+        if role != InterviewParticipantRole.INTERVIEWER:
+            raise InterviewLifecycleError("Only the interviewer can end the interview.")
+        interview = self._get_interview_for_update(interview_id)
+        if interview.status == InterviewStatus.ENDED:
+            return interview
+        if interview.status == InterviewStatus.SCHEDULED:
+            raise InterviewLifecycleError("The interview has not been joined yet.")
+        interview.status = InterviewStatus.ENDED
+        if interview.ended_at is None:
+            interview.ended_at = now or datetime.now(UTC)
+        return self._interviews.save(interview)
 
     def _room_view(
         self,
@@ -165,6 +230,7 @@ class InterviewRoomService:
         if job is None:
             raise JobNotFoundError(interview.job_id)
         application = self._get_application(interview)
+        join_allowed = interview.status != InterviewStatus.ENDED
         return InterviewRoomView(
             interview_id=interview.id,
             job_title=job.title,
@@ -178,8 +244,12 @@ class InterviewRoomService:
             scheduled_start_at=ensure_utc(interview.scheduled_start_at),
             duration_minutes=interview.duration_minutes,
             timezone=interview.display_timezone,
-            signaling_ticket=self._tickets.issue(interview.id, role),
-            ice_servers=self._ice_servers,
+            signaling_ticket=(self._tickets.issue(interview.id, role) if join_allowed else None),
+            ice_servers=self._ice_servers if join_allowed else [],
+            ice_transport_policy=self._ice_transport_policy,
+            join_allowed=join_allowed,
+            started_at=interview.started_at,
+            ended_at=interview.ended_at,
         )
 
     def _get_interview(self, interview_id: UUID) -> InterviewSession:
@@ -187,6 +257,17 @@ class InterviewRoomService:
         if interview is None:
             raise InterviewNotFoundError
         return interview
+
+    def _get_interview_for_update(self, interview_id: UUID) -> InterviewSession:
+        interview = self._interviews.get_for_update(interview_id)
+        if interview is None:
+            raise InterviewNotFoundError
+        return interview
+
+    @staticmethod
+    def _ensure_joinable(interview: InterviewSession) -> None:
+        if interview.status == InterviewStatus.ENDED:
+            raise InterviewEndedError
 
     def _get_application(self, interview: InterviewSession) -> JobApplication:
         application = self._interviews.get_application(interview.application_id)
@@ -200,7 +281,53 @@ class InterviewRoomService:
 
 
 def parse_stun_urls(value: str) -> list[str]:
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return parse_ice_urls(value, allowed_schemes=("stun:", "stuns:"))
+
+
+def parse_turn_urls(value: str) -> list[str]:
+    return parse_ice_urls(value, allowed_schemes=("turn:", "turns:"))
+
+
+def parse_ice_urls(value: str, *, allowed_schemes: tuple[str, ...]) -> list[str]:
+    urls = [item.strip() for item in value.split(",") if item.strip()]
+    if any(not url.casefold().startswith(allowed_schemes) for url in urls):
+        raise InterviewConfigurationError("The WebRTC ICE server configuration is invalid.")
+    return urls
+
+
+def build_ice_server_configuration(
+    stun_urls: list[str],
+    turn_urls: list[str],
+    turn_username: str,
+    turn_password: str,
+    ice_transport_policy: str,
+) -> list[IceServerConfiguration]:
+    """Normalize browser ICE configuration and reject incomplete TURN settings."""
+
+    if ice_transport_policy not in {"all", "relay"}:
+        raise InterviewConfigurationError("The WebRTC ICE transport policy is invalid.")
+    has_turn_credentials = bool(turn_username) and bool(turn_password)
+    if bool(turn_username) != bool(turn_password):
+        raise InterviewConfigurationError("TURN credentials are incomplete.")
+    if turn_urls and not has_turn_credentials:
+        raise InterviewConfigurationError("TURN credentials are not configured.")
+    if has_turn_credentials and not turn_urls:
+        raise InterviewConfigurationError("A TURN URL is not configured.")
+    if ice_transport_policy == "relay" and not turn_urls:
+        raise InterviewConfigurationError("Relay-only WebRTC requires a TURN server.")
+
+    servers: list[IceServerConfiguration] = []
+    if stun_urls:
+        servers.append(IceServerConfiguration(urls=stun_urls))
+    if turn_urls:
+        servers.append(
+            IceServerConfiguration(
+                urls=turn_urls,
+                username=turn_username,
+                credential=turn_password,
+            )
+        )
+    return servers
 
 
 def _encode_base64(value: bytes) -> str:
