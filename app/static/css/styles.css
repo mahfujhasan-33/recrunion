@@ -13,11 +13,18 @@
 }
 
 .candidate-interview-page {
+  box-sizing: border-box;
+  width: 100%;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 1.5rem;
+  overflow-x: hidden;
   background: #eef4f7;
+}
+
+.candidate-interview-page * {
+  box-sizing: border-box;
 }
 
 .candidate-interview-shell {
@@ -26,6 +33,7 @@
 
 .interview-room-shell {
   width: min(76rem, 100%);
+  min-width: 0;
   display: grid;
   gap: 1rem;
 }
@@ -49,31 +57,36 @@
   gap: 1.5rem;
 }
 
+.interview-prejoin > *,
+.interview-room-header,
+.interview-room-status {
+  min-width: 0;
+}
+
 .interview-video-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(14rem, 1fr);
+  align-items: start;
+  min-width: 0;
   gap: 1rem;
 }
 
 .interview-video-card {
   position: relative;
   overflow: hidden;
-  min-height: 22rem;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 16 / 9;
   border-radius: 0.85rem;
   background: #101827;
   box-shadow: 0 0.4rem 1.5rem rgb(23 32 51 / 14%);
 }
 
-.interview-video-card.local {
-  min-height: 14rem;
-}
-
 .interview-video-card video {
   width: 100%;
   height: 100%;
-  min-height: inherit;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .interview-video-label {
@@ -86,6 +99,7 @@
   background: rgb(16 24 39 / 78%);
   font-size: 0.8rem;
   font-weight: 700;
+  z-index: 2;
 }
 
 .interview-video-placeholder {
@@ -97,6 +111,7 @@
   color: #dce7ef;
   text-align: center;
   pointer-events: none;
+  z-index: 1;
 }
 
 .interview-video-placeholder[hidden] {
@@ -107,8 +122,16 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  min-width: 0;
   gap: 0.75rem;
   padding: 0.5rem;
+}
+
+.interview-controls .button,
+.interview-prejoin .button {
+  min-width: 0;
+  min-height: 2.75rem;
+  max-width: 100%;
 }
 
 .interview-room-status {
@@ -118,6 +141,7 @@
   color: #234b3d;
   background: #e7f5ee;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .interview-room-status.error {
@@ -148,19 +172,42 @@
   font-weight: 600;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
+  .candidate-interview-page {
+    place-items: start center;
+    padding: 1rem;
+  }
+
   .interview-prejoin {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .interview-prejoin .actions {
+    width: 100%;
   }
 
   .interview-video-grid {
     grid-template-columns: 1fr;
   }
 
-  .interview-video-card,
-  .interview-video-card.local {
-    min-height: 16rem;
+  .interview-room-header {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .candidate-interview-page {
+    padding: 0.75rem;
+  }
+
+  .interview-controls .button,
+  .interview-prejoin .button {
+    width: 100%;
+  }
+
+  .interview-controls {
+    padding-inline: 0;
   }
 }
 
@@ -668,9 +715,17 @@ td {
   vertical-align: top;
 }
 
-button:disabled {
-  cursor: wait;
+button:disabled,
+button[disabled],
+[aria-disabled="true"] {
+  cursor: not-allowed;
   opacity: 0.65;
+}
+
+button[aria-busy="true"],
+.button.is-loading,
+.btn.is-loading {
+  cursor: progress;
 }
 
 @media (max-width: 40rem) {

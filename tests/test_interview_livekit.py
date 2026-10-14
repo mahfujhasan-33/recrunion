@@ -197,3 +197,18 @@ def test_room_client_restores_and_separates_remote_media_tracks() -> None:
     assert "function attachRemoteTrack(track, _publication, participant)" in client_source
     assert "track.attach(remoteVideo)" in client_source
     assert "track.attach(remoteAudio)" in client_source
+
+
+def test_interview_room_has_responsive_media_and_explicit_cursor_states() -> None:
+    css_source = Path("app/static/css/styles.css").read_text(encoding="utf-8")
+    client_source = Path("app/static/js/interview_room.js").read_text(encoding="utf-8")
+
+    assert "aspect-ratio: 16 / 9" in css_source
+    assert "object-fit: contain" in css_source
+    assert "@media (max-width: 48rem)" in css_source
+    assert "cursor: not-allowed" in css_source
+    assert 'button[aria-busy="true"]' in css_source
+    assert "cursor: progress" in css_source
+    assert "cursor: wait" not in css_source
+    assert "setButtonLoading(joinButton, true)" in client_source
+    assert "setButtonLoading(joinButton, false)" in client_source

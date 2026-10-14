@@ -51,6 +51,11 @@ function setCallControls(enabled) {
   leaveButton.disabled = !enabled;
 }
 
+function setButtonLoading(button, loading) {
+  if (loading) button.setAttribute("aria-busy", "true");
+  else button.removeAttribute("aria-busy");
+}
+
 function showRejoin(message) {
   rejoinButton.hidden = false;
   joinButton.disabled = true;
@@ -64,6 +69,7 @@ function localTrack(source) {
 
 async function prepareMedia() {
   prepareButton.disabled = true;
+  setButtonLoading(prepareButton, true);
   setStatus("Requesting camera and microphone access…");
   try {
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
@@ -80,6 +86,8 @@ async function prepareMedia() {
   } catch (error) {
     prepareButton.disabled = false;
     setStatus(error.message || "Camera and microphone access was not available.", true);
+  } finally {
+    setButtonLoading(prepareButton, false);
   }
 }
 
@@ -218,6 +226,7 @@ function configureRoomEvents() {
 
 async function joinRoom() {
   joinButton.disabled = true;
+  setButtonLoading(joinButton, true);
   explicitlyLeft = false;
   setStatus("Connecting to the LiveKit interview room…");
   try {
@@ -244,6 +253,8 @@ async function joinRoom() {
   } catch (error) {
     await disconnectRoom();
     showRejoin(error.message || "The LiveKit interview room is temporarily unavailable.");
+  } finally {
+    setButtonLoading(joinButton, false);
   }
 }
 
