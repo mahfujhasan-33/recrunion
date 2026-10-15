@@ -39,6 +39,7 @@ from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
 from app.repositories.policy_knowledge import PolicyKnowledgeRepository, PolicyReviewRepository
 from app.repositories.processing_jobs import ProcessingJobRepository
+from app.repositories.transcripts import TranscriptRepository
 from app.schemas.job_publications import PublicationProvider
 from app.services.application_intake import ApplicationIntakeService
 from app.services.assistant import AssistantService
@@ -58,6 +59,7 @@ from app.services.job_publications import JobPublishingService
 from app.services.jobs import JobService
 from app.services.policy_reviews import PolicyReviewService
 from app.services.processing_jobs import ProcessingJobService
+from app.services.transcripts import TranscriptIngestCredentials, TranscriptService
 
 
 def get_job_service(
@@ -200,10 +202,27 @@ def get_interview_room_service(
     session: Annotated[Session, Depends(get_db_session)],
     video_adapter: Annotated[VideoAdapter, Depends(get_video_adapter)],
 ) -> InterviewRoomService:
+    settings = get_settings()
     return InterviewRoomService(
         InterviewRepository(session),
         JobRepository(session),
         video_adapter,
+        app_base_url=settings.app_base_url,
+        transcription_callback_base_url=settings.stt_agent_callback_base_url,
+        transcription_agent_name=settings.livekit_transcription_agent_name,
+        transcription_dispatch_enabled=settings.stt_dispatch_enabled,
+        transcription_ingest_configured=bool(settings.stt_agent_ingest_secret),
+    )
+
+
+def get_transcript_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> TranscriptService:
+    settings = get_settings()
+    return TranscriptService(
+        InterviewRepository(session),
+        TranscriptRepository(session),
+        TranscriptIngestCredentials(settings.stt_agent_ingest_secret),
     )
 
 

@@ -26,6 +26,7 @@ from app.routers import (
     scoring_api,
     screening_api,
     tasks_api,
+    transcripts_api,
 )
 
 STATIC_DIRECTORY = Path(__file__).parent / "static"
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     application.include_router(email_intake_api.router)
     application.include_router(applications_api.router)
     application.include_router(interviews_api.router)
+    application.include_router(transcripts_api.router)
     application.include_router(screening_api.router)
     application.include_router(scoring_api.router)
     application.include_router(assistant_web.router)

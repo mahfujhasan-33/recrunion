@@ -53,7 +53,7 @@ async def test_candidate_and_interviewer_rooms_receive_server_selected_credentia
     service = build_room_service(db_session)
 
     candidate = service.get_candidate_room(invitation_token)
-    interviewer = service.get_interviewer_room(scheduled.id)
+    interviewer = await service.get_interviewer_room(scheduled.id)
 
     assert candidate.role == VideoParticipantRole.CANDIDATE
     assert candidate.candidate_reference is None
@@ -85,7 +85,7 @@ async def test_missing_provider_configuration_keeps_room_safe_and_tokenless(
     )
     service = build_room_service(db_session, FakeVideoAdapter(configured=False))
 
-    room = service.get_interviewer_room(scheduled.id)
+    room = await service.get_interviewer_room(scheduled.id)
 
     assert room.provider_configured is False
     assert room.join_allowed is False
@@ -94,13 +94,14 @@ async def test_missing_provider_configuration_keeps_room_safe_and_tokenless(
     assert room.provider_error_message is not None
 
 
-def test_room_lookup_rejects_unknown_invitation_and_interview(db_session: Session) -> None:
+@pytest.mark.asyncio
+async def test_room_lookup_rejects_unknown_invitation_and_interview(db_session: Session) -> None:
     service = build_room_service(db_session)
 
     with pytest.raises(InterviewNotFoundError):
         service.get_candidate_room("not-a-valid-invitation")
     with pytest.raises(InterviewNotFoundError):
-        service.get_interviewer_room(uuid4())
+        await service.get_interviewer_room(uuid4())
 
 
 @pytest.mark.asyncio
@@ -200,7 +201,7 @@ async def test_interviewer_end_is_write_once_and_terminates_provider_room(
     assert ended_again.ended_at == ended.ended_at
     assert ended_again.ended_at is not None
     assert adapter.terminated_rooms == [video_room_name(scheduled.id)]
-    assert service.get_interviewer_room(scheduled.id).participant_token is None
+    assert (await service.get_interviewer_room(scheduled.id)).participant_token is None
     assert (await service.sync_interviewer_lifecycle(scheduled.id)).status == InterviewStatus.ENDED
 
 

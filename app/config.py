@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
     livekit_token_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    livekit_transcription_agent_name: str = "recrunion-transcriber"
+    stt_dispatch_enabled: bool = True
+    stt_agent_ingest_secret: str = ""
+    stt_agent_callback_base_url: str = ""
     database_url: str = "postgresql+psycopg://recrunion:CHANGE_ME@localhost:5432/recrunion"
     log_level: str = "INFO"
     llm_provider: str = "gemini"

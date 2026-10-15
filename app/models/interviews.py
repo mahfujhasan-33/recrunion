@@ -32,6 +32,11 @@ class InvitationStatus(StrEnum):
     NOT_CONFIGURED = "NOT_CONFIGURED"
 
 
+class TranscriptParticipantRole(StrEnum):
+    CANDIDATE = "CANDIDATE"
+    INTERVIEWER = "INTERVIEWER"
+
+
 class InterviewSession(Base):
     __tablename__ = "interview_sessions"
     __table_args__ = (
@@ -93,3 +98,45 @@ class InterviewSession(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InterviewTranscriptSegment(Base):
+    __tablename__ = "interview_transcript_segments"
+    __table_args__ = (
+        UniqueConstraint(
+            "interview_id",
+            "participant_identity",
+            "segment_key",
+            name="uq_transcript_segment_identity_key",
+        ),
+        Index(
+            "ix_transcript_segments_interview_started",
+            "interview_id",
+            "started_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    interview_id: Mapped[UUID] = mapped_column(
+        ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    participant_role: Mapped[TranscriptParticipantRole] = mapped_column(
+        Enum(
+            TranscriptParticipantRole,
+            name="transcript_participant_role",
+            native_enum=False,
+            create_constraint=True,
+        ),
+        nullable=False,
+    )
+    participant_identity: Mapped[str] = mapped_column(String(100), nullable=False)
+    segment_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    text: Mapped[str] = mapped_column(String(8000), nullable=False)
+    language: Mapped[str | None] = mapped_column(String(35), nullable=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_segment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

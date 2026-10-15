@@ -313,6 +313,19 @@ class InterviewEndedError(InterviewLifecycleError):
         super().__init__("This interview has ended and cannot be rejoined.")
 
 
+class TranscriptAuthenticationError(RecrUnionError):
+    code = "TRANSCRIPT_INGEST_UNAUTHORIZED"
+    status_code = 401
+
+    def __init__(self) -> None:
+        super().__init__("Transcript ingest authentication failed.")
+
+
+class TranscriptValidationError(RecrUnionError):
+    code = "TRANSCRIPT_SEGMENT_INVALID"
+    status_code = 422
+
+
 class DriveError(RecrUnionError):
     code = "DRIVE_UNAVAILABLE"
     status_code = 502

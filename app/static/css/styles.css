@@ -149,6 +149,55 @@
   background: #fdecec;
 }
 
+.interview-transcript-panel {
+  min-width: 0;
+}
+
+.interview-transcript-heading,
+.interview-transcript-segment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.interview-transcript-heading h2 {
+  margin: 0;
+}
+
+.interview-transcript-segments {
+  max-height: 20rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid #d8e2e8;
+  padding-top: 0.75rem;
+}
+
+.interview-transcript-segment {
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: #f5f8fa;
+}
+
+.interview-transcript-segment + .interview-transcript-segment {
+  margin-top: 0.65rem;
+}
+
+.interview-transcript-segment p {
+  margin: 0.35rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.interview-transcript-segment time {
+  color: #52616b;
+  font-size: 0.8rem;
+}
+
+.interview-transcript-segment.interim {
+  opacity: 0.72;
+  border-left: 3px solid #087864;
+}
+
 .candidate-interview-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
@@ -193,6 +242,11 @@
 
   .interview-room-header {
     padding: 1rem;
+  }
+
+  .interview-transcript-heading,
+  .interview-transcript-segment-header {
+    align-items: flex-start;
   }
 }
 

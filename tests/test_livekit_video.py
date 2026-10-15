@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
+from livekit import api
 
 from app.adapters.livekit_video import LiveKitVideoAdapter
 from app.adapters.video import (
@@ -19,9 +20,16 @@ API_SECRET = "synthetic-livekit-secret-that-is-long-enough"
 class FakeRoomService:
     def __init__(self) -> None:
         self.identities = ["candidate_example", "agent_example"]
+        self.created_rooms: list[str] = []
         self.listed_room: str | None = None
         self.deleted_room: str | None = None
         self.error: Exception | None = None
+
+    async def create_room(self, request):
+        if self.error is not None:
+            raise self.error
+        self.created_rooms.append(request.name)
+        return SimpleNamespace(name=request.name)
 
     async def list_participants(self, request):
         if self.error is not None:
@@ -38,9 +46,34 @@ class FakeRoomService:
         return SimpleNamespace()
 
 
+class FakeAgentDispatchService:
+    def __init__(self) -> None:
+        self.dispatches = []
+        self.create_requests = []
+        self.error: Exception | None = None
+
+    async def list_dispatch(self, _room_name: str):
+        if self.error is not None:
+            raise self.error
+        return self.dispatches
+
+    async def create_dispatch(self, request):
+        if self.error is not None:
+            raise self.error
+        self.create_requests.append(request)
+        dispatch = SimpleNamespace(
+            agent_name=request.agent_name,
+            room=request.room,
+            metadata=request.metadata,
+        )
+        self.dispatches.append(dispatch)
+        return dispatch
+
+
 class FakeLiveKitClient:
     def __init__(self) -> None:
         self.room = FakeRoomService()
+        self.agent_dispatch = FakeAgentDispatchService()
         self.closed = False
 
     async def aclose(self) -> None:
@@ -139,4 +172,58 @@ async def test_provider_failure_is_translated_and_client_is_closed() -> None:
     with pytest.raises(VideoProviderError, match="temporarily unavailable"):
         await build_adapter(client).list_participants(uuid4())
 
+    assert client.closed is True
+
+
+@pytest.mark.asyncio
+async def test_transcription_dispatch_is_idempotent_and_contains_only_supplied_metadata() -> None:
+    interview_id = uuid4()
+    client = FakeLiveKitClient()
+    adapter = build_adapter(client)
+    metadata = '{"callback_url":"https://example.test/callback","interview_id":"opaque"}'
+
+    await adapter.ensure_transcription_dispatch(
+        interview_id,
+        agent_name="recrunion-transcriber",
+        metadata=metadata,
+    )
+    await adapter.ensure_transcription_dispatch(
+        interview_id,
+        agent_name="recrunion-transcriber",
+        metadata=metadata,
+    )
+
+    assert len(client.agent_dispatch.create_requests) == 1
+    request = client.agent_dispatch.create_requests[0]
+    assert request.room == video_room_name(interview_id)
+    assert request.agent_name == "recrunion-transcriber"
+    assert request.metadata == metadata
+    assert "secret" not in request.metadata.casefold()
+
+
+@pytest.mark.asyncio
+async def test_transcription_dispatch_creates_missing_room_before_dispatch() -> None:
+    interview_id = uuid4()
+    client = FakeLiveKitClient()
+    adapter = build_adapter(client)
+
+    async def list_dispatch_after_room_creation(room_name: str):
+        if not client.room.created_rooms:
+            raise api.ServerError(
+                "not_found",
+                "requested room does not exist",
+                status=404,
+            )
+        return []
+
+    client.agent_dispatch.list_dispatch = list_dispatch_after_room_creation
+
+    await adapter.ensure_transcription_dispatch(
+        interview_id,
+        agent_name="recrunion-transcriber",
+        metadata='{"interview_id":"opaque"}',
+    )
+
+    assert client.room.created_rooms == [video_room_name(interview_id)]
+    assert len(client.agent_dispatch.create_requests) == 1
     assert client.closed is True

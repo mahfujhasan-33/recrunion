@@ -18,6 +18,10 @@ const leaveButton = document.querySelector("#leave-interview-room");
 const statusElement = document.querySelector("#interview-room-status");
 const lifecycleElement = document.querySelector("#interview-lifecycle-status");
 const scheduledElement = document.querySelector("#candidate-interview-time");
+const transcriptStatus = document.querySelector("#transcription-status");
+const transcriptStatusMessage = document.querySelector("#transcription-status-message");
+const transcriptSegments = document.querySelector("#interview-transcript-segments");
+const transcriptEmpty = document.querySelector("#interview-transcript-empty");
 
 const livekit = window.LivekitClient;
 const expectedRemoteIdentity = `${
@@ -28,6 +32,7 @@ let localTracks = [];
 let joined = false;
 let explicitlyLeft = false;
 let callEnded = roomConfig.status === "ENDED";
+const liveTranscriptRows = new Map();
 
 scheduledElement.textContent = new Intl.DateTimeFormat(undefined, {
   dateStyle: "full",
@@ -43,6 +48,123 @@ function setStatus(message, isError = false) {
 function setLifecycle(status) {
   roomConfig.status = status;
   lifecycleElement.textContent = status;
+}
+
+function setTranscriptionStatus(status) {
+  if (!transcriptStatus || !transcriptStatusMessage) return;
+  transcriptStatus.textContent = status.charAt(0) + status.slice(1).toLowerCase();
+  const messages = {
+    STARTING: "Transcription is starting. The interview can continue while the agent connects.",
+    LIVE: "Live transcription is active.",
+    UNAVAILABLE: "Transcription is temporarily unavailable. The interview can continue normally.",
+    ENDED: "Transcription has ended. Persisted final segments remain available.",
+  };
+  transcriptStatusMessage.textContent = messages[status] || messages.UNAVAILABLE;
+}
+
+function transcriptSpeaker(identity) {
+  const opaqueInterviewId = roomConfig.interview_id.replaceAll("-", "");
+  if (identity === `candidate_${opaqueInterviewId}`) return "Candidate";
+  if (identity === `interviewer_${opaqueInterviewId}`) return "Interviewer";
+  return null;
+}
+
+function appendTranscriptRow({ key, identity, text, isFinal, startedAt }) {
+  if (!transcriptSegments) return;
+  const speaker = transcriptSpeaker(identity);
+  const normalizedText = text.trim();
+  if (!speaker || !normalizedText || !key) return;
+  const nearBottom =
+    transcriptSegments.scrollHeight - transcriptSegments.scrollTop - transcriptSegments.clientHeight <
+    48;
+  let row = liveTranscriptRows.get(key);
+  if (!row) {
+    row = document.createElement("article");
+    row.className = "interview-transcript-segment";
+    row.dataset.segmentKey = key;
+    const header = document.createElement("div");
+    header.className = "interview-transcript-segment-header";
+    const label = document.createElement("strong");
+    label.textContent = speaker;
+    const time = document.createElement("time");
+    if (startedAt) {
+      time.dateTime = startedAt;
+      time.textContent = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(
+        new Date(startedAt),
+      );
+    }
+    header.append(label, time);
+    const body = document.createElement("p");
+    row.append(header, body);
+    transcriptSegments.append(row);
+    liveTranscriptRows.set(key, row);
+  }
+  row.querySelector("p").textContent = normalizedText;
+  row.classList.toggle("interim", !isFinal);
+  row.dataset.final = String(isFinal);
+  if (transcriptEmpty) transcriptEmpty.hidden = true;
+  if (nearBottom) transcriptSegments.scrollTop = transcriptSegments.scrollHeight;
+}
+
+async function loadPersistedTranscript() {
+  if (!roomConfig.transcript_url || !transcriptSegments) return;
+  try {
+    const response = await fetch(roomConfig.transcript_url, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error("Persisted transcript could not be loaded.");
+    const payload = await response.json();
+    for (const segment of payload.segments || []) {
+      appendTranscriptRow({
+        key: `persisted:${segment.id}`,
+        identity: segment.participant_identity,
+        text: segment.text,
+        isFinal: true,
+        startedAt: segment.started_at,
+      });
+    }
+  } catch (_error) {
+    setTranscriptionStatus("UNAVAILABLE");
+  }
+}
+
+function configureTranscriptionStreams() {
+  if (!room || roomConfig.role !== "INTERVIEWER" || !transcriptSegments) return;
+  room.registerTextStreamHandler("lk.transcription", async (reader, participantInfo) => {
+    try {
+      const attributes = reader.info?.attributes || {};
+      if (!attributes["lk.transcribed_track_id"]) return;
+      const segmentId = attributes["lk.segment_id"];
+      if (!segmentId) return;
+      const text = await reader.readAll();
+      appendTranscriptRow({
+        key: `live:${participantInfo.identity}:${segmentId}`,
+        identity: participantInfo.identity,
+        text,
+        isFinal:
+          attributes["lk.transcription_final"] === true ||
+          attributes["lk.transcription_final"] === "true",
+      });
+      setTranscriptionStatus("LIVE");
+    } catch (_error) {
+      setTranscriptionStatus("UNAVAILABLE");
+    }
+  });
+  room.registerTextStreamHandler(
+    "recrunion.transcription.status",
+    async (reader, participantInfo) => {
+      if (!participantInfo.identity.startsWith("agent-")) return;
+      try {
+        const status = (await reader.readAll()).trim().toUpperCase();
+        if (["STARTING", "LIVE", "UNAVAILABLE", "ENDED"].includes(status)) {
+          setTranscriptionStatus(status);
+        }
+      } catch (_error) {
+        setTranscriptionStatus("UNAVAILABLE");
+      }
+    },
+  );
 }
 
 function setCallControls(enabled) {
@@ -231,6 +353,7 @@ async function joinRoom() {
   setStatus("Connecting to the LiveKit interview room…");
   try {
     room = new livekit.Room({ adaptiveStream: true, dynacast: true });
+    configureTranscriptionStreams();
     configureRoomEvents();
     await room.connect(roomConfig.livekit_url, participantToken, { autoSubscribe: true });
     await room.startAudio();
@@ -294,6 +417,7 @@ async function leaveRoom() {
       return;
     }
     callEnded = true;
+    setTranscriptionStatus("ENDED");
     setLifecycle("ENDED");
     await disconnectRoom();
     setStatus(
@@ -349,3 +473,8 @@ leaveButton.addEventListener("click", leaveRoom);
 window.addEventListener("beforeunload", () => {
   if (joined && room) room.disconnect();
 });
+
+if (roomConfig.role === "INTERVIEWER") {
+  setTranscriptionStatus(roomConfig.transcription_status || "UNAVAILABLE");
+  loadPersistedTranscript();
+}

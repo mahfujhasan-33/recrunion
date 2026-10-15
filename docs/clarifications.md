@@ -62,10 +62,12 @@ RecrUnion preserves its custom UI, candidate capability link, authorization, log
 `InterviewSession`, lifecycle, and timestamps. FastAPI creates short-lived room-scoped tokens and
 verifies provider presence; it never proxies or records media.
 
-The original F4 implementation baseline was local faster-whisper CPU transcription. The current
-planned M11 direction is a LiveKit Cloud hosted transcription agent using AssemblyAI behind the
-provider-neutral `STTAdapter`. Deterministic opaque candidate/interviewer identities allow the
-future agent to attribute tracks without making provider diarization a core requirement.
+The original F4 implementation baseline was local faster-whisper CPU transcription. The approved
+M11 design uses a LiveKit publisher agent with AssemblyAI behind provider-neutral `STTAdapter`.
+The initial hosting target was LiveKit Cloud; the final evaluation deployment runs the same agent
+as a Docker Compose service connected outbound to LiveKit Cloud. Deterministic opaque
+candidate/interviewer identities allow publisher-scoped jobs to attribute tracks without provider
+diarization. Managed LiveKit hosting remains a future production option.
 
 The normalized `TranscriptEvent` contract contains interview ID, participant role, start/end
 timestamps, text, final/partial state, nullable confidence, and only necessary internal provider
@@ -154,8 +156,11 @@ authorization and interview lifecycle; LiveKit owns realtime media transport and
 recording and Egress are disabled. Live cross-network acceptance remains pending.
 
 ## STT
-Planned M11: a LiveKit hosted agent uses AssemblyAI behind provider-neutral `STTAdapter` and
-returns normalized transcript events. M10-LK does not implement STT or persist transcripts.
+M11 adds a separately packaged LiveKit publisher agent using AssemblyAI behind provider-neutral
+`STTAdapter`. The active evaluation runtime is a Docker Compose service with outbound provider
+connections and an authenticated private callback to `app`. Live interim/final text is delivered
+through LiveKit. M10-LK itself remains the media-transport milestone and does not contain
+provider-specific STT behavior.
 
 ## Background work
 Python worker + PostgreSQL `processing_jobs`. No Redis/Celery.

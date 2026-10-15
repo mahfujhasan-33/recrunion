@@ -1,5 +1,7 @@
+import json
 import logging
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
 from app.adapters.video import (
@@ -19,7 +21,7 @@ from app.models.applications import JobApplication
 from app.models.interviews import InterviewSession, InterviewStatus
 from app.repositories.interviews import InterviewRepository
 from app.repositories.jobs import JobRepository
-from app.schemas.interviews import InterviewRoomView
+from app.schemas.interviews import InterviewRoomView, TranscriptionStatus
 from app.services.interview_scheduling import ensure_utc, hash_token
 
 logger = logging.getLogger(__name__)
@@ -33,10 +35,23 @@ class InterviewRoomService:
         interview_repository: InterviewRepository,
         job_repository: JobRepository,
         video_adapter: VideoAdapter,
+        *,
+        app_base_url: str = "",
+        transcription_callback_base_url: str = "",
+        transcription_agent_name: str = "",
+        transcription_dispatch_enabled: bool = False,
+        transcription_ingest_configured: bool = False,
     ) -> None:
         self._interviews = interview_repository
         self._jobs = job_repository
         self._video = video_adapter
+        self._app_base_url = app_base_url.rstrip("/")
+        self._transcription_callback_base_url = (
+            transcription_callback_base_url.rstrip("/") or self._app_base_url
+        )
+        self._transcription_agent_name = transcription_agent_name.strip()
+        self._transcription_dispatch_enabled = transcription_dispatch_enabled
+        self._transcription_ingest_configured = transcription_ingest_configured
 
     def get_candidate_room(self, invitation_token: str) -> InterviewRoomView:
         interview = self._get_candidate_interview(invitation_token)
@@ -46,13 +61,16 @@ class InterviewRoomService:
             lifecycle_sync_url=f"/interviews/join/{invitation_token}/lifecycle-sync",
         )
 
-    def get_interviewer_room(self, interview_id: UUID) -> InterviewRoomView:
+    async def get_interviewer_room(self, interview_id: UUID) -> InterviewRoomView:
         interview = self._get_interview(interview_id)
+        transcription_status = await self._ensure_transcription_dispatch(interview)
         return self._room_view(
             interview,
             VideoParticipantRole.INTERVIEWER,
             lifecycle_sync_url=f"/api/v1/interviews/{interview.id}/lifecycle-sync",
             end_url=f"/api/v1/interviews/{interview.id}/end",
+            transcript_url=f"/api/v1/interviews/{interview.id}/transcript",
+            transcription_status=transcription_status,
         )
 
     async def sync_candidate_lifecycle(self, invitation_token: str) -> InterviewSession:
@@ -129,6 +147,8 @@ class InterviewRoomService:
         *,
         lifecycle_sync_url: str,
         end_url: str | None = None,
+        transcript_url: str | None = None,
+        transcription_status: TranscriptionStatus | None = None,
     ) -> InterviewRoomView:
         job = self._jobs.get(interview.job_id)
         if job is None:
@@ -169,7 +189,55 @@ class InterviewRoomService:
             join_allowed=join_allowed,
             started_at=interview.started_at,
             ended_at=interview.ended_at,
+            transcript_url=transcript_url,
+            transcription_status=transcription_status,
         )
+
+    async def _ensure_transcription_dispatch(
+        self,
+        interview: InterviewSession,
+    ) -> TranscriptionStatus:
+        if interview.status == InterviewStatus.ENDED:
+            return TranscriptionStatus.ENDED
+        if (
+            not self._transcription_dispatch_enabled
+            or not self._transcription_ingest_configured
+            or not self._transcription_agent_name
+            or not self._video.configured
+            or not self._valid_transcription_callback_base_url()
+        ):
+            return TranscriptionStatus.UNAVAILABLE
+        callback_url = (
+            f"{self._transcription_callback_base_url}"
+            f"/api/v1/internal/interviews/{interview.id}/transcript-segments"
+        )
+        metadata = json.dumps(
+            {
+                "interview_id": str(interview.id),
+                "callback_url": callback_url,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        try:
+            await self._video.ensure_transcription_dispatch(
+                interview.id,
+                agent_name=self._transcription_agent_name,
+                metadata=metadata,
+            )
+        except VideoProviderError:
+            logger.warning(
+                "Live transcription dispatch failed interview_id=%s",
+                interview.id,
+            )
+            return TranscriptionStatus.UNAVAILABLE
+        return TranscriptionStatus.STARTING
+
+    def _valid_transcription_callback_base_url(self) -> bool:
+        parsed = urlparse(self._transcription_callback_base_url)
+        if not parsed.netloc or parsed.query or parsed.fragment:
+            return False
+        return parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname == "app")
 
     def _get_candidate_interview(self, invitation_token: str) -> InterviewSession:
         if not invitation_token or len(invitation_token) > 512:

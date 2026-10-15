@@ -17,6 +17,11 @@ from app.errors import VideoConfigurationError, VideoProviderError
 
 
 class LiveKitRoomService(Protocol):
+    async def create_room(
+        self,
+        request: api.CreateRoomRequest,
+    ) -> api.Room: ...
+
     async def list_participants(
         self,
         request: api.ListParticipantsRequest,
@@ -28,8 +33,18 @@ class LiveKitRoomService(Protocol):
     ) -> api.DeleteRoomResponse: ...
 
 
+class LiveKitAgentDispatchService(Protocol):
+    async def list_dispatch(self, room_name: str) -> list[api.AgentDispatch]: ...
+
+    async def create_dispatch(
+        self,
+        request: api.CreateAgentDispatchRequest,
+    ) -> api.AgentDispatch: ...
+
+
 class LiveKitAPIClient(Protocol):
     room: LiveKitRoomService
+    agent_dispatch: LiveKitAgentDispatchService
 
     async def aclose(self) -> None: ...
 
@@ -125,6 +140,40 @@ class LiveKitVideoAdapter(VideoAdapter):
         except Exception as error:
             raise VideoProviderError(
                 "The live interview provider room could not be closed."
+            ) from error
+        finally:
+            await client.aclose()
+
+    async def ensure_transcription_dispatch(
+        self,
+        interview_id: UUID,
+        *,
+        agent_name: str,
+        metadata: str,
+    ) -> None:
+        self._ensure_configured()
+        room_name = video_room_name(interview_id)
+        client = self._client_factory()
+        try:
+            try:
+                dispatches = await client.agent_dispatch.list_dispatch(room_name)
+            except api.ServerError as error:
+                if error.code != "not_found":
+                    raise
+                await client.room.create_room(api.CreateRoomRequest(name=room_name))
+                dispatches = []
+            if any(dispatch.agent_name == agent_name for dispatch in dispatches):
+                return
+            await client.agent_dispatch.create_dispatch(
+                api.CreateAgentDispatchRequest(
+                    agent_name=agent_name,
+                    room=room_name,
+                    metadata=metadata,
+                )
+            )
+        except Exception as error:
+            raise VideoProviderError(
+                "Live transcription could not be started. The interview can continue."
             ) from error
         finally:
             await client.aclose()

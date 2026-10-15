@@ -15,7 +15,7 @@ The application may process:
 The current architecture may send limited data to:
 - **Gemini API** — selected structured job/CV/transcript text needed for AI reasoning
 - **LiveKit Cloud** — encrypted live audio/video transport using opaque room and participant identifiers; recording and Egress are disabled
-- **AssemblyAI** — planned for M11 through a LiveKit hosted transcription agent; not yet active
+- **AssemblyAI** — live microphone audio for M11 transcription through the local Dockerized LiveKit publisher agent
 - **Bluesky** — approved public job-post content
 - **SMTP provider** — recipient address and notification message
 
@@ -23,7 +23,9 @@ Company-policy embeddings are produced locally through Ollama using `nomic-embed
 policy documents are not sent to an external embedding service. Relevant retrieved policy excerpts
 are sent to Gemini only when needed for JD generation and policy-alignment findings.
 PostgreSQL/pgvector and ReportLab remain local. LiveKit processes media only for the active call.
-Future M11 transcription will add the separately documented AssemblyAI processing path.
+When transcription is enabled, the local agent receives each dispatched microphone track from
+LiveKit Cloud, sends it to AssemblyAI, and returns normalized text over the private Compose network;
+RecrUnion does not record the media.
 
 ## Retention and minimization
 - raw audio/video recording is disabled by default

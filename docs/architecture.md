@@ -22,20 +22,21 @@ FastAPI Web Application
         +--> Adapter Layer --> Gemini / Ollama-Nomic / LiveKit / Bluesky / Gmail
         +--> PostgreSQL + pgvector
 
-Future F4:
-LiveKit room --> hosted transcription agent --> AssemblyAI --> RecrUnion transcript persistence
+F4 transcription path:
+LiveKit room --> Docker transcription-agent --> AssemblyAI --> RecrUnion transcript persistence
 ```
 
 Current containers:
 1. `app`
 2. `worker`
 3. `postgres`
+4. `transcription-agent`
 
 LiveKit Cloud is the external F3 realtime-media provider and owns signalling, WebRTC transport,
 ICE/STUN/TURN, NAT traversal, and reconnection. RecrUnion owns participant authorization,
 `InterviewSession` lifecycle, and persistence. FastAPI never proxies or records interview media.
 Exactly one authorized candidate and one authorized interviewer are supported; provider room
-capacity remains available for the future hidden F4 transcription agent.
+capacity remains available for the hidden F4 transcription agent.
 
 Baseline excludes Nginx, Redis, Celery, ChromaDB, Kubernetes, and microservices.
 
@@ -164,12 +165,20 @@ Temporary disconnects do not end or duplicate the session. Interviewer end persi
 so formal F3 is partial rather than complete.
 
 ## STT
-F4 is not implemented. M11 is planned to use a LiveKit Cloud hosted transcription agent that
-subscribes to the two deterministic human microphone tracks, sends audio to AssemblyAI, and sends
-normalized transcript events to RecrUnion. `STTAdapter` remains provider-neutral and AssemblyAI
-schemas must not escape its adapter. RecrUnion will persist structured transcript segments, not
-raw audio. No transcription agent, STT dependency, transcript endpoint, or browser-side second
-microphone pipeline is part of M10-LK.
+M11 uses a separately packaged LiveKit publisher agent running as the `transcription-agent` Docker
+Compose service. The service connects outbound to LiveKit Cloud and AssemblyAI; it exposes no host
+port and is not in the candidate/interviewer media path. LiveKit dispatches one agent job per human
+publisher, and the agent subscribes only to that publisher's microphone through provider-neutral
+`STTAdapter`. Opaque participant identity maps the result deterministically to `CANDIDATE` or
+`INTERVIEWER`, without provider diarization.
+
+Live partial/final events use LiveKit's `lk.transcription` text stream for recruiter display. Only
+final normalized segments are sent over an authenticated private Compose callback to `app` and
+persisted in PostgreSQL. Public `APP_BASE_URL` remains the browser/invitation origin; the private
+callback does not depend on Cloudflare. AssemblyAI schemas remain inside the adapter, and neither
+raw audio nor partial text is stored by RecrUnion. The candidate page does not expose the transcript
+panel or retrieval API. LiveKit-hosted deployment of the same agent remains a future production
+option for managed scaling or geographic placement.
 
 ## External actions
 - JobDescriptionGraph --`retrieve policy evidence`--> Ollama/Nomic + pgvector
@@ -179,7 +188,7 @@ microphone pipeline is part of M10-LK.
 - ScreeningService --`retrieve persisted CV evidence`--> pgvector
 - ProbeGraph --`generate targeted probes`--> Gemini
 - InterviewRoomService --> VideoAdapter --> LiveKitVideoAdapter --> LiveKit Cloud
-- Future hosted transcription agent --> STTAdapter --> AssemblyAI
+- Docker transcription-agent --> LiveKit Cloud + STTAdapter --> AssemblyAI
 - AnalysisGraph --`evaluate Q&A`--> Gemini
 - AssessmentGraph --`generate narrative`--> Gemini
 - AssessmentService --`generate PDF`--> ReportLab

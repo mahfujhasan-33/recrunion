@@ -40,6 +40,15 @@ class VideoAdapter(Protocol):
     async def terminate_room(self, interview_id: UUID) -> None:
         """Disconnect participants and remove the provider room."""
 
+    async def ensure_transcription_dispatch(
+        self,
+        interview_id: UUID,
+        *,
+        agent_name: str,
+        metadata: str,
+    ) -> None:
+        """Idempotently dispatch the configured transcription agent to a room."""
+
 
 def video_room_name(interview_id: UUID) -> str:
     return f"ru_{interview_id.hex}"

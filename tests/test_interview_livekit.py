@@ -1,7 +1,9 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIWebSocketRoute
 from fastapi.testclient import TestClient
@@ -15,7 +17,11 @@ from app.adapters.video import (
     video_room_name,
 )
 from app.dependencies import get_video_adapter
+from app.errors import VideoProviderError
 from app.models.interviews import InterviewSession, InterviewStatus, InvitationStatus
+from app.repositories.interviews import InterviewRepository
+from app.repositories.jobs import JobRepository
+from app.services.interview_rooms import InterviewRoomService
 from app.services.interview_scheduling import hash_token
 from tests.conftest import FakeVideoAdapter
 from tests.test_interview_scheduling import create_scored_application
@@ -212,3 +218,135 @@ def test_interview_room_has_responsive_media_and_explicit_cursor_states() -> Non
     assert "cursor: wait" not in css_source
     assert "setButtonLoading(joinButton, true)" in client_source
     assert "setButtonLoading(joinButton, false)" in client_source
+
+
+def test_interviewer_transcript_uses_current_text_stream_api() -> None:
+    client_source = Path("app/static/js/interview_room.js").read_text(encoding="utf-8")
+
+    assert 'registerTextStreamHandler("lk.transcription"' in client_source
+    assert 'attributes["lk.transcription_final"]' in client_source
+    assert 'attributes["lk.segment_id"]' in client_source
+    assert 'attributes["lk.transcribed_track_id"]' in client_source
+    assert "TranscriptionReceived" not in client_source
+    assert "publish_transcription" not in client_source
+
+
+@pytest.mark.asyncio
+async def test_recruiter_room_dispatches_transcriber_with_public_fallback(
+    db_session: Session,
+    fake_video_adapter: FakeVideoAdapter,
+) -> None:
+    interview = create_interview(db_session)
+    service = InterviewRoomService(
+        InterviewRepository(db_session),
+        JobRepository(db_session),
+        fake_video_adapter,
+        app_base_url="https://recrunion.example.test",
+        transcription_agent_name="recrunion-transcriber",
+        transcription_dispatch_enabled=True,
+        transcription_ingest_configured=True,
+    )
+
+    first = await service.get_interviewer_room(interview.id)
+    second = await service.get_interviewer_room(interview.id)
+
+    assert first.transcription_status == "STARTING"
+    assert second.transcription_status == "STARTING"
+    assert len(fake_video_adapter.transcription_dispatches) == 1
+    dispatch = fake_video_adapter.transcription_dispatches[0]
+    assert dispatch["room"] == video_room_name(interview.id)
+    assert dispatch["agent_name"] == "recrunion-transcriber"
+    metadata = json.loads(dispatch["metadata"])
+    assert metadata == {
+        "callback_url": (
+            "https://recrunion.example.test/api/v1/internal/interviews/"
+            f"{interview.id}/transcript-segments"
+        ),
+        "interview_id": str(interview.id),
+    }
+    assert "secret" not in dispatch["metadata"].casefold()
+
+
+@pytest.mark.asyncio
+async def test_private_callback_base_overrides_public_app_base(
+    db_session: Session,
+    fake_video_adapter: FakeVideoAdapter,
+) -> None:
+    interview = create_interview(db_session)
+    service = InterviewRoomService(
+        InterviewRepository(db_session),
+        JobRepository(db_session),
+        fake_video_adapter,
+        app_base_url="https://public-recrunion.example.test",
+        transcription_callback_base_url="http://app:8000",
+        transcription_agent_name="recrunion-transcriber",
+        transcription_dispatch_enabled=True,
+        transcription_ingest_configured=True,
+    )
+
+    room = await service.get_interviewer_room(interview.id)
+
+    assert room.transcription_status == "STARTING"
+    metadata = json.loads(fake_video_adapter.transcription_dispatches[0]["metadata"])
+    assert metadata["callback_url"] == (
+        f"http://app:8000/api/v1/internal/interviews/{interview.id}/transcript-segments"
+    )
+    assert "public-recrunion" not in fake_video_adapter.transcription_dispatches[0]["metadata"]
+    assert "secret" not in fake_video_adapter.transcription_dispatches[0]["metadata"].casefold()
+
+
+@pytest.mark.asyncio
+async def test_transcription_dispatch_failure_does_not_break_interviewer_room(
+    db_session: Session,
+    fake_video_adapter: FakeVideoAdapter,
+) -> None:
+    interview = create_interview(db_session)
+    fake_video_adapter.dispatch_error = VideoProviderError("raw provider detail")
+    service = InterviewRoomService(
+        InterviewRepository(db_session),
+        JobRepository(db_session),
+        fake_video_adapter,
+        app_base_url="https://recrunion.example.test",
+        transcription_agent_name="recrunion-transcriber",
+        transcription_dispatch_enabled=True,
+        transcription_ingest_configured=True,
+    )
+
+    room = await service.get_interviewer_room(interview.id)
+
+    assert room.join_allowed is True
+    assert room.participant_token == "synthetic-livekit-participant-token"
+    assert room.transcription_status == "UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_transcription_dispatch_requires_public_https_callback(
+    db_session: Session,
+    fake_video_adapter: FakeVideoAdapter,
+) -> None:
+    interview = create_interview(db_session)
+    service = InterviewRoomService(
+        InterviewRepository(db_session),
+        JobRepository(db_session),
+        fake_video_adapter,
+        app_base_url="http://localhost:8000",
+        transcription_agent_name="recrunion-transcriber",
+        transcription_dispatch_enabled=True,
+        transcription_ingest_configured=True,
+    )
+
+    room = await service.get_interviewer_room(interview.id)
+
+    assert room.transcription_status == "UNAVAILABLE"
+    assert fake_video_adapter.transcription_dispatches == []
+
+
+def test_compose_runs_transcription_agent_without_public_port() -> None:
+    compose = Path(__file__).parents[1].joinpath("docker-compose.yml").read_text(encoding="utf-8")
+    agent_service = compose.split("  transcription-agent:", 1)[1].split("  postgres:", 1)[0]
+
+    assert "context: ./livekit_agent" in agent_service
+    assert "ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}" in agent_service
+    assert "STT_AGENT_INGEST_SECRET: ${STT_AGENT_INGEST_SECRET:-}" in agent_service
+    assert "restart: unless-stopped" in agent_service
+    assert "ports:" not in agent_service

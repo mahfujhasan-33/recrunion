@@ -50,12 +50,12 @@ async def sync_candidate_interview_lifecycle(
 
 
 @router.get("/interviews/{interview_id}/room", response_class=HTMLResponse)
-def recruiter_interview_page(
+async def recruiter_interview_page(
     request: Request,
     interview_id: UUID,
     service: InterviewRoomServiceDependency,
 ) -> HTMLResponse:
-    room = service.get_interviewer_room(interview_id)
+    room = await service.get_interviewer_room(interview_id)
     return templates.TemplateResponse(
         request=request,
         name="interviews/join.html",

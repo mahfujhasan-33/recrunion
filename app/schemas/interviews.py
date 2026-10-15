@@ -14,6 +14,13 @@ class InvitationEmailSource(StrEnum):
     NOT_AVAILABLE = "NOT_AVAILABLE"
 
 
+class TranscriptionStatus(StrEnum):
+    STARTING = "STARTING"
+    LIVE = "LIVE"
+    UNAVAILABLE = "UNAVAILABLE"
+    ENDED = "ENDED"
+
+
 class InterviewScheduleRequest(BaseModel):
     invitation_email: EmailStr
     scheduled_start_local: datetime
@@ -78,6 +85,8 @@ class InterviewRoomView(BaseModel):
     join_allowed: bool = True
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    transcript_url: str | None = None
+    transcription_status: TranscriptionStatus | None = None
 
 
 class InterviewLifecycleResponse(BaseModel):

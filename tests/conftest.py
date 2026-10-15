@@ -349,6 +349,8 @@ class FakeVideoAdapter:
         self.terminated_rooms: list[str] = []
         self.list_error: VideoProviderError | None = None
         self.terminate_error: VideoProviderError | None = None
+        self.transcription_dispatches: list[dict[str, str]] = []
+        self.dispatch_error: VideoProviderError | None = None
 
     @property
     def configured(self) -> bool:
@@ -377,6 +379,23 @@ class FakeVideoAdapter:
         if self.terminate_error is not None:
             raise self.terminate_error
         self.terminated_rooms.append(video_room_name(interview_id))
+
+    async def ensure_transcription_dispatch(
+        self,
+        interview_id: UUID,
+        *,
+        agent_name: str,
+        metadata: str,
+    ) -> None:
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
+        request = {
+            "room": video_room_name(interview_id),
+            "agent_name": agent_name,
+            "metadata": metadata,
+        }
+        if request not in self.transcription_dispatches:
+            self.transcription_dispatches.append(request)
 
 
 @pytest.fixture

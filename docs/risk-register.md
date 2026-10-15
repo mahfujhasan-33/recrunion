@@ -3,7 +3,8 @@
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---:|---:|---|
 | R1 | LiveKit outage or degraded realtime-media service | Medium | High | safe provider state, scoped credentials, documented provider status and manual acceptance |
-| R2 | Hosted streaming STT latency/outage | Medium | High | provider-neutral adapter, partial/final events, visible safe failure, transcript persistence |
+| R2 | Streaming STT latency/outage | Medium | High | provider-neutral adapter, publisher-scoped jobs, partial/final live events, visible safe failure, idempotent final persistence, live latency measurement |
+| R18 | Local transcription-agent stopped, resource constrained, or disconnected from LiveKit/AssemblyAI | Medium | High | `restart: unless-stopped`, no inbound port, F3/F4 isolation, container/log checks, managed hosting retained as future fallback |
 | R3 | Nonstandard PDFs | High | Medium | safe failure/NEEDS_REVIEW |
 | R4 | Gemini quota/outage | Medium | High | adapter, retries, cache/reuse, visible failure |
 | R5 | LiveKit free-tier quota exhaustion or account configuration failure | Medium | High | monitor quota, fail safely, and verify credentials before demonstrations |

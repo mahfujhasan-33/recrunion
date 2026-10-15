@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ room.job_title }} interview · RecrUnion</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20261014-interview-ux-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261014-m11-1">
   </head>
   <body class="candidate-interview-page">
     <main class="interview-room-shell">
@@ -50,6 +50,24 @@
         </article>
       </section>
 
+      {% if room.role.value == 'INTERVIEWER' %}
+      <section class="detail-card interview-transcript-panel" aria-labelledby="live-transcript-title">
+        <div class="interview-transcript-heading">
+          <div>
+            <p class="eyebrow">Interview evidence</p>
+            <h2 id="live-transcript-title">Live transcript</h2>
+          </div>
+          <span id="transcription-status" class="status-badge">{{ room.transcription_status.value | title }}</span>
+        </div>
+        <p id="transcription-status-message" class="hint" role="status" aria-live="polite">
+          {% if room.transcription_status.value == 'ENDED' %}Transcription has ended. Persisted final segments remain available.{% elif room.transcription_status.value == 'UNAVAILABLE' %}Transcription is temporarily unavailable. The interview can continue normally.{% else %}Transcription is starting. The interview can begin while the hosted agent connects.{% endif %}
+        </p>
+        <div id="interview-transcript-segments" class="interview-transcript-segments" tabindex="0" aria-label="Transcript segments">
+          <p id="interview-transcript-empty" class="hint">No final transcript segments yet.</p>
+        </div>
+      </section>
+      {% endif %}
+
       <section class="interview-controls" aria-label="Call controls">
         <button id="toggle-interview-microphone" class="button secondary" type="button" disabled>Mute microphone</button>
         <button id="toggle-interview-camera" class="button secondary" type="button" disabled>Turn camera off</button>
@@ -59,6 +77,6 @@
     </main>
     <script id="interview-room-config" type="application/json">{{ room_config | tojson }}</script>
     <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.min.js" defer></script>
-    <script src="/static/js/interview_room.js?v=20261014-interview-ux-1" defer></script>
+    <script src="/static/js/interview_room.js?v=20261014-m11-1" defer></script>
   </body>
 </html>
