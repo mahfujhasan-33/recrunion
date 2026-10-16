@@ -78,6 +78,30 @@ from app.services.auth import hash_password
 class FakeLLMAdapter:
     """Deterministic adapter used by graph, service, and API tests."""
 
+    async def generate_interview_probes(self, request):
+        from app.schemas.interview_probes import GeneratedProbe, GeneratedProbeSet
+
+        gaps = request.gaps[:1] if request.request_text else request.gaps
+        return GeneratedProbeSet(
+            probes=[
+                GeneratedProbe(
+                    requirement_id=gap.requirement_id,
+                    question=(
+                        f"Describe a concrete example demonstrating {gap.requirement_text} "
+                        "and explain your approach."
+                    ),
+                    reason=gap.reason,
+                    expected_evidence=[
+                        f"A concrete, job-relevant example of {gap.requirement_text}"
+                    ],
+                    transcript_segment_ids=[request.transcript[-1]["id"]]
+                    if request.transcript
+                    else [],
+                )
+                for gap in gaps
+            ]
+        )
+
     def __init__(self) -> None:
         self.call_count = 0
         self.policy_call_count = 0

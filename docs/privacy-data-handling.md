@@ -66,6 +66,19 @@ complete by this foundation.
 ## Fairness
 Protected characteristics such as age, gender, ethnicity, nationality, religion, and marital status must not be used as scoring inputs. AI output is decision support only; the final hiring decision remains human.
 
+M11.6 F11/co-pilot APIs and the candidate-context panel are recruiter-only. The candidate room
+does not embed probes, F1/F2, expected answers, or co-pilot configuration. Existing session-bound
+CSRF protects generation, requested follow-ups, and status changes. Gemini receives only the
+selected approved job, objective saved F1/F2 references, bounded job-related CV excerpts and, for
+requested follow-ups, up to 30 final saved transcript segments (each bounded to 1,500 characters).
+Contact-profile fields and candidate names are not sent. Obvious contact lines are excluded from
+CV excerpts; this is minimization, not comprehensive anonymization of free text.
+
+Question prompts and deterministic validators reject protected-trait questioning, off-topic source
+references, scoring and hiring recommendations. No accent or voice analysis occurs. Runs and
+questions are candidate-derived sensitive data; existing application/job deletion removes them
+and their worker tasks. No raw media, additional STT path, or recording is introduced.
+
 ## Repository and demonstration hygiene
 The submitted repository must not contain:
 - real CVs or personal candidate data

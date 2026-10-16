@@ -20,6 +20,7 @@ from app.dependencies import (
     build_candidate_processing_service,
     build_candidate_screening_service,
     build_email_intake_service,
+    build_interview_probe_service,
     build_job_publishing_service,
 )
 from app.errors import CompanyDocumentValidationError, RecrUnionError
@@ -176,6 +177,24 @@ def process_next_task(runner: asyncio.Runner | None = None) -> bool:
                 )
                 _run_async(
                     screening.process(
+                        task.entity_id,
+                        lambda progress, message: task_repository.update_progress(
+                            task, progress, message
+                        ),
+                    ),
+                    runner,
+                )
+            elif task.job_type == ProcessingJobType.INTERVIEW_ASSISTANCE:
+                assistance = build_interview_probe_service(
+                    session,
+                    GeminiLLMAdapter(
+                        api_key=settings.gemini_api_key,
+                        model=settings.gemini_model,
+                        timeout_seconds=settings.gemini_timeout_seconds,
+                    ),
+                )
+                _run_async(
+                    assistance.process(
                         task.entity_id,
                         lambda progress, message: task_repository.update_progress(
                             task, progress, message

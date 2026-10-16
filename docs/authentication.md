@@ -41,7 +41,7 @@ capability URLs even from same-origin requests. Opaque `Origin: null` remains re
 Shared FastAPI dependencies protect the recruiter route families: home, jobs and JD workflows,
 publishing, applications/CV processing, company documents, email intake, F1 screening/ranking,
 F2 scoring, assistant workflows, interview management/interviewer room, transcript retrieval,
-task status, and API documentation. Future F11/F5/F6 routes must use the same dependency.
+task status, F11 probes/co-pilot, and API documentation. Future F5/F6 routes must use the same dependency.
 
 Anonymous recruiter APIs return 401; recruiter pages redirect to a local login destination.
 An authenticated account with an unauthorized role receives 403. Browser destinations cannot be

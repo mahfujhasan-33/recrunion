@@ -32,6 +32,16 @@ Formal project documentation is under [`/docs`](docs/).
 
 Detailed build/run instructions will be completed as the implementation progresses.
 
+### F11 interviewer co-pilot
+
+Open a scheduled interview's recruiter room after the job is approved and the application's
+F1/F2 results are current. The **AI Co-pilot** tab below the video offers evidence-guided questions,
+expected-evidence guidance, persisted Asked/Dismissed actions, and requested follow-ups using only
+that interview's saved context. Generation uses the existing worker; provider failures do not stop
+the call/transcription. The candidate room never displays this workspace. F11 is the single defined
+innovation; this interface is not F5 analysis or a hiring recommendation.
+See [innovation rationale](docs/innovation-feature.md) for traceability and limitations.
+
 ## Quick start
 
 Requirements: Docker with the Compose plugin.

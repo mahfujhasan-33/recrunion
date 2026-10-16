@@ -472,3 +472,15 @@ class ScoringConfigurationError(RecrUnionError):
 class CandidateScoringError(RecrUnionError):
     code = "CANDIDATE_SCORING_FAILED"
     status_code = 500
+
+
+class InterviewAssistanceStateError(RecrUnionError):
+    code = "INTERVIEW_ASSISTANCE_STATE_INVALID"
+    status_code = 409
+    retryable = False
+
+
+class InterviewAssistanceValidationError(RecrUnionError):
+    code = "INTERVIEW_ASSISTANCE_OUTPUT_REJECTED"
+    status_code = 502
+    retryable = False

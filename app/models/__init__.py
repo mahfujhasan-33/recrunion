@@ -28,6 +28,7 @@ from app.models.company_documents import (
     CompanyDocumentStatus,
     CompanyDocumentType,
 )
+from app.models.interview_probes import InterviewAssistanceRun, InterviewProbe
 from app.models.interviews import (
     InterviewSession,
     InterviewStatus,
@@ -88,6 +89,8 @@ __all__ = [
     "EmploymentType",
     "EvidenceCoverage",
     "IntakeReceiptStatus",
+    "InterviewAssistanceRun",
+    "InterviewProbe",
     "InterviewSession",
     "InterviewStatus",
     "InterviewTranscriptSegment",

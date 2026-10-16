@@ -83,6 +83,25 @@ workflow.
 ### F11 Probe Graph
 `load candidate -> identify gaps -> prioritize -> generate probes -> validate -> persist`
 
+M11.6 implements the planned M9/formal F11 capability in the recruiter interview console.
+`InterviewProbeService` reads only the selected application's current persisted F1/F2 and approved
+job requirements. A typed multi-node graph detects gaps, orders them deterministically, obtains
+structured wording through `LLMAdapter`, validates ownership/safety/relevance, and persists probes.
+Both preparation and recruiter-requested follow-ups run as `INTERVIEW_ASSISTANCE` tasks in the
+existing PostgreSQL worker; no additional queue, provider, or media path is introduced.
+
+The **Interviewer AI Co-pilot** is the UI/runtime presentation of F11, RecrUnion's single defined
+innovation, plus requested grounded follow-up assistance. It is not a second innovation or F5.
+Follow-ups may read up to 30 final persisted segments from this interview. Recruiter-only tabs
+below the videos expose Live Transcript and AI Co-pilot, with a minimal job-related candidate brief.
+Candidate capabilities never authorize these APIs or render these panels. Existing recruiter
+authentication and CSRF apply. No answer scoring, coverage classification, or hiring decision occurs.
+
+Runs preserve request IDs, source fingerprints and task state. Probes preserve requirement/F1/F2/CV
+references and compact evidence snapshots. Explicit regeneration replaces only READY suggestions;
+ASKED and DISMISSED history survives. Changed source evidence is marked historical and cannot be
+silently used for a queued generation. Provider failure leaves media, transcripts and old probes intact.
+
 ### F5 Interview Analysis Graph
 `load transcript -> normalize -> segment Q&A -> map requirements -> evaluate -> coverage gaps -> evidence validation -> persist`
 

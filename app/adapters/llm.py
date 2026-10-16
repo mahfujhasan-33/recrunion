@@ -5,6 +5,7 @@ from app.schemas.candidate_profiles import (
     CandidateProfileExtractionRequest,
     CandidateProfileExtractionResult,
 )
+from app.schemas.interview_probes import GeneratedProbeSet, ProbeGenerationContext
 from app.schemas.job_descriptions import (
     JobDescriptionEnhancementRequest,
     JobDescriptionGenerationRequest,
@@ -21,6 +22,10 @@ from app.schemas.screening import (
 @runtime_checkable
 class LLMAdapter(Protocol):
     """Application contract for job-description generation providers."""
+
+    async def generate_interview_probes(self, request: ProbeGenerationContext) -> GeneratedProbeSet:
+        """Write grounded F11 probes or a recruiter-requested follow-up."""
+        ...
 
     async def plan_assistant_turn(
         self,

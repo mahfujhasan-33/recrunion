@@ -127,6 +127,7 @@ def test_every_sensitive_route_rejects_non_recruiter_credentials(
             "processing tasks",
             "interviews",
             "interview transcripts",
+            "interview assistance",
             "email intake",
         } <= families
 

@@ -1,0 +1,23 @@
+<section id="copilot-tab-panel" class="detail-card interview-copilot" role="tabpanel" aria-labelledby="copilot-tab" data-interview-id="{{ room.interview_id }}" hidden>
+  <div class="card-heading">
+    <div><p class="eyebrow">F11 · Smart interview probes</p><h2>Explore the evidence gaps</h2></div>
+    <div class="copilot-generation-actions">
+      <button id="generate-interview-probes" class="button" type="button">Generate questions</button>
+      <button id="regenerate-interview-probes" class="button secondary" type="button">Regenerate unused</button>
+    </div>
+  </div>
+  <p class="hint">Decision support, not an assessment. Expected evidence describes what a strong answer may cover, not one perfect answer. Human judgment remains authoritative.</p>
+  <p id="copilot-status" role="status" aria-live="polite">Generate questions from this application's current F1/F2 evidence.</p>
+  <progress id="copilot-progress" max="100" value="0" aria-label="Interview assistance progress" hidden></progress>
+  <div id="interview-probes" class="interview-probe-list"></div>
+  <section class="copilot-conversation" aria-labelledby="copilot-followup-title">
+    <h3 id="copilot-followup-title">Ask your co-pilot</h3>
+    <p class="hint">Ask for a job-related follow-up or expected evidence. Saved transcript context is used only for this interview; no scores or hiring recommendations.</p>
+    <form id="copilot-question-form">
+      <label for="copilot-question">What would you like to explore?</label>
+      <textarea id="copilot-question" rows="3" minlength="5" maxlength="1500" placeholder="Suggest a deeper Python question about the candidate's last answer." required></textarea>
+      <button id="send-copilot-question" class="button" type="submit">Suggest follow-up</button>
+    </form>
+    <div id="copilot-replies" aria-live="polite"></div>
+  </section>
+</section>

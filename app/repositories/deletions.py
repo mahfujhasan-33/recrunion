@@ -15,6 +15,7 @@ from app.models.applications import (
     JobApplication,
 )
 from app.models.assistant import AssistantArtifact, AssistantConversation, AssistantMessage
+from app.models.interview_probes import InterviewAssistanceRun, InterviewProbe
 from app.models.interviews import InterviewSession, InterviewTranscriptSegment
 from app.models.job_policy import JobDescriptionPolicyFinding, JobDescriptionPolicyReview
 from app.models.job_publications import JobPublication, PublicationStatus
@@ -103,7 +104,17 @@ class DeletionRepository:
             )
             if task_id is not None
         }
-        entity_ids = {document.id, *screening_ids}
+        interview_ids = select(InterviewSession.id).where(
+            InterviewSession.application_id == application.id
+        )
+        assistance_ids = set(
+            self._session.scalars(
+                select(InterviewAssistanceRun.id).where(
+                    InterviewAssistanceRun.interview_id.in_(interview_ids)
+                )
+            )
+        )
+        entity_ids = {document.id, *screening_ids, *assistance_ids}
         related_tasks = list(
             self._session.scalars(
                 select(ProcessingJob).where(
@@ -172,7 +183,15 @@ class DeletionRepository:
             )
             if task_id is not None
         }
-        entity_ids = {job_id, *document_ids, *screening_ids, *task_ids}
+        interview_ids = select(InterviewSession.id).where(InterviewSession.job_id == job_id)
+        assistance_ids = set(
+            self._session.scalars(
+                select(InterviewAssistanceRun.id).where(
+                    InterviewAssistanceRun.interview_id.in_(interview_ids)
+                )
+            )
+        )
+        entity_ids = {job_id, *document_ids, *screening_ids, *task_ids, *assistance_ids}
 
         conversation_ids = set(
             self._session.scalars(
@@ -315,6 +334,18 @@ class DeletionRepository:
     ) -> None:
         if not application_ids:
             return
+        interview_query = select(InterviewSession.id).where(
+            InterviewSession.application_id.in_(application_ids)
+        )
+        assistance_query = select(InterviewAssistanceRun.id).where(
+            InterviewAssistanceRun.interview_id.in_(interview_query)
+        )
+        self._execute(
+            delete(InterviewProbe).where(InterviewProbe.application_id.in_(application_ids))
+        )
+        self._execute(
+            delete(InterviewAssistanceRun).where(InterviewAssistanceRun.id.in_(assistance_query))
+        )
         match_ids: set[UUID] = set()
         if screening_ids:
             match_ids.update(

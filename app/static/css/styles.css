@@ -800,6 +800,150 @@ button[aria-busy="true"],
   margin: 2rem auto;
 }
 
+/* Recruiter console only: the candidate room retains its existing presentation. */
+.recruiter-interview-console {
+  place-items: start center;
+  background: #f1f5f8;
+}
+
+.recruiter-interview-console .interview-room-shell {
+  width: min(92rem, 100%);
+}
+
+.interview-console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.interview-console-main {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.interview-console-grid > *,
+.interview-intelligence,
+.interview-copilot,
+.interview-probe-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.recruiter-interview-console .interview-video-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.console-header-actions,
+.interview-workspace-tabs,
+.copilot-generation-actions,
+.copilot-probe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.console-header-actions {
+  justify-content: flex-end;
+}
+
+#interview-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.interview-workspace-tabs {
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #d8e2e8;
+  padding-bottom: 0.75rem;
+}
+
+.interview-workspace-tabs [aria-selected="true"] {
+  color: #fff;
+  background: #176b55;
+}
+
+.interview-workspace-tabs .button,
+.copilot-probe-actions .button {
+  min-height: 2.75rem;
+}
+
+.interview-candidate-context {
+  position: sticky;
+  top: 1rem;
+  border-top: 3px solid #176b55;
+}
+
+.interview-candidate-context ul {
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.interview-probe-list,
+.copilot-conversation form {
+  display: grid;
+  gap: 1rem;
+}
+
+.interview-probe-card {
+  padding: 1.25rem;
+  border: 1px solid #d8e2e8;
+  border-radius: 0.75rem;
+  background: #f8fafb;
+  margin-bottom: 1rem;
+}
+
+.interview-probe-card h3 {
+  margin-top: 0.65rem;
+}
+
+.interview-probe-card details {
+  margin: 0.75rem 0;
+}
+
+.copilot-conversation {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d8e2e8;
+}
+
+#copilot-progress {
+  width: 100%;
+  accent-color: #176b55;
+}
+
+.interview-intelligence [hidden] {
+  display: none;
+}
+
+@media (max-width: 68rem) {
+  .interview-console-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .interview-candidate-context {
+    position: static;
+  }
+}
+
+@media (max-width: 48rem) {
+  .recruiter-interview-console .interview-video-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .interview-copilot .card-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .interview-copilot {
+    padding: 1rem;
+  }
+}
+
 .login-card form {
   display: grid;
   gap: 1rem;

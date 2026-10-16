@@ -8,14 +8,15 @@
     <script src="/static/js/csrf.js?v=20261016-m115-1" defer></script>
     {% endif %}
     <title>{{ room.job_title }} interview · RecrUnion</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20261014-m11-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261016-m116-1">
   </head>
-  <body class="candidate-interview-page">
+  <body class="candidate-interview-page{% if room.role.value == 'INTERVIEWER' %} recruiter-interview-console{% endif %}">
     <main class="interview-room-shell">
       <header class="interview-room-header">
         <div>
           <p class="eyebrow">RecrUnion Interview · {{ room.role.value | title }}</p>
-          <h1>{{ room.job_title }}</h1>
+          <h1>{% if room.role.value == 'INTERVIEWER' %}AI Interview{% else %}{{ room.job_title }}{% endif %}</h1>
+          {% if room.role.value == 'INTERVIEWER' %}<p>{{ room.job_title }} · Human-led, evidence-informed</p>{% endif %}
           {% if room.candidate_reference %}<p>Candidate: <strong>{{ room.candidate_reference }}</strong></p>{% endif %}
         </div>
         <dl class="candidate-interview-details">
@@ -24,7 +25,15 @@
           <div><dt>Duration</dt><dd>{{ room.duration_minutes }} minutes</dd></div>
           <div><dt>Status</dt><dd><span id="interview-lifecycle-status" class="status-badge">{{ room.status.value }}</span></dd></div>
         </dl>
+        {% if room.role.value == 'INTERVIEWER' %}
+        <div class="console-header-actions">
+          <output id="interview-elapsed" data-started-at="{{ room.started_at.isoformat() if room.started_at else '' }}" data-ended-at="{{ room.ended_at.isoformat() if room.ended_at else '' }}" aria-label="Interview elapsed time">00:00</output>
+          <button id="end-interview-header" class="button danger" type="button" disabled>End interview</button>
+        </div>
+        {% endif %}
       </header>
+
+      {% if room.role.value == 'INTERVIEWER' %}<div class="interview-console-grid"><div class="interview-console-main">{% endif %}
 
       <section id="interview-prejoin" class="detail-card interview-prejoin">
         <div>
@@ -44,7 +53,7 @@
         <article class="interview-video-card">
           <video id="remote-interview-video" autoplay playsinline></video>
           <audio id="remote-interview-audio" autoplay></audio>
-          <span class="interview-video-label">Remote participant</span>
+          <span class="interview-video-label">{% if room.role.value == 'INTERVIEWER' %}Candidate{% else %}Remote participant{% endif %}</span>
           <div id="remote-video-placeholder" class="interview-video-placeholder">Waiting for the other participant</div>
         </article>
         <article class="interview-video-card local">
@@ -54,8 +63,19 @@
         </article>
       </section>
 
+      <section class="interview-controls" aria-label="Call controls">
+        <button id="toggle-interview-microphone" class="button secondary" type="button" disabled>Mute microphone</button>
+        <button id="toggle-interview-camera" class="button secondary" type="button" disabled>Turn camera off</button>
+        <button id="leave-interview-room" class="button danger" type="button" disabled>{% if room.role.value == 'INTERVIEWER' %}End interview{% else %}Leave interview{% endif %}</button>
+      </section>
+
       {% if room.role.value == 'INTERVIEWER' %}
-      <section class="detail-card interview-transcript-panel" aria-labelledby="live-transcript-title">
+      <section class="interview-intelligence" aria-label="Interviewer workspace">
+      <div class="interview-workspace-tabs" role="tablist" aria-label="Interview assistance">
+        <button id="transcript-tab" class="button secondary" type="button" role="tab" aria-selected="true" aria-controls="transcript-tab-panel">Live Transcript</button>
+        <button id="copilot-tab" class="button secondary" type="button" role="tab" aria-selected="false" aria-controls="copilot-tab-panel" tabindex="-1">AI Co-pilot</button>
+      </div>
+      <section id="transcript-tab-panel" role="tabpanel" aria-labelledby="transcript-tab" class="detail-card interview-transcript-panel">
         <div class="interview-transcript-heading">
           <div>
             <p class="eyebrow">Interview evidence</p>
@@ -70,17 +90,24 @@
           <p id="interview-transcript-empty" class="hint">No final transcript segments yet.</p>
         </div>
       </section>
+      {% include 'interviews/copilot.html' %}
+      </section>
       {% endif %}
 
-      <section class="interview-controls" aria-label="Call controls">
-        <button id="toggle-interview-microphone" class="button secondary" type="button" disabled>Mute microphone</button>
-        <button id="toggle-interview-camera" class="button secondary" type="button" disabled>Turn camera off</button>
-        <button id="leave-interview-room" class="button danger" type="button" disabled>{% if room.role.value == 'INTERVIEWER' %}End interview{% else %}Leave interview{% endif %}</button>
-      </section>
       <p id="interview-room-status" class="interview-room-status" role="status" aria-live="polite">{% if room.status.value == 'ENDED' %}This interview has ended.{% elif not room.provider_configured %}{{ room.provider_error_message }}{% else %}Run the device check when you are ready.{% endif %}</p>
+      {% if room.role.value == 'INTERVIEWER' %}
+      </div>
+      <aside id="interview-candidate-context" class="detail-card interview-candidate-context" aria-labelledby="candidate-context-title">
+        <p class="eyebrow">Your interview brief</p>
+        <h2 id="candidate-context-title">Candidate Info</h2>
+        <p>Loading job-related context…</p>
+      </aside>
+      </div>
+      {% endif %}
     </main>
     <script id="interview-room-config" type="application/json">{{ room_config | tojson }}</script>
     <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.min.js" defer></script>
     <script src="/static/js/interview_room.js?v=20261014-m11-1" defer></script>
+    {% if room.role.value == 'INTERVIEWER' %}<script src="/static/js/interview_copilot.js?v=20261016-m116-1" defer></script>{% endif %}
   </body>
 </html>

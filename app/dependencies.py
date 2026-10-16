@@ -34,6 +34,7 @@ from app.repositories.candidate_screening import CandidateScreeningRepository
 from app.repositories.company_documents import CompanyDocumentRepository
 from app.repositories.deletions import DeletionRepository
 from app.repositories.email_intake import EmailIntakeRepository
+from app.repositories.interview_probes import InterviewProbeRepository
 from app.repositories.interviews import InterviewRepository
 from app.repositories.job_publications import JobPublicationRepository
 from app.repositories.jobs import JobRepository
@@ -51,6 +52,7 @@ from app.services.company_documents import CompanyDocumentService
 from app.services.deletions import DeletionService
 from app.services.drive_archive import DriveArchiveService
 from app.services.email_intake import EmailApplicationIntakeService
+from app.services.interview_probes import InterviewProbeService
 from app.services.interview_rooms import InterviewRoomService
 from app.services.interview_scheduling import InterviewSchedulingService
 from app.services.job_descriptions import JobDescriptionService
@@ -326,6 +328,27 @@ def get_candidate_scoring_service(
         CandidateScreeningRepository(session),
         CandidateScoringRepository(session),
     )
+
+
+def build_interview_probe_service(
+    session: Session, llm_adapter: LLMAdapter
+) -> InterviewProbeService:
+    return InterviewProbeService(
+        InterviewProbeRepository(session),
+        InterviewRepository(session),
+        JobRepository(session),
+        CandidateScreeningRepository(session),
+        get_candidate_scoring_service(session),
+        TranscriptRepository(session),
+        llm_adapter,
+    )
+
+
+def get_interview_probe_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    llm_adapter: Annotated[LLMAdapter, Depends(get_llm_adapter)],
+) -> InterviewProbeService:
+    return build_interview_probe_service(session, llm_adapter)
 
 
 def get_publisher_adapter() -> PublisherAdapter:

@@ -20,3 +20,5 @@
 | R17 | LiveKit participant token is over-permissioned or leaks | Low/Medium | High | short TTL, exact room/identity, camera/microphone-only publish, backend secret, no token persistence/logging |
 | R15 | Publishing/email extras consume core time | Medium | Medium | thin adapters; F1–F6 priority |
 | R16 | User cannot explain generated code | Medium | High | incremental Codex review/explain/commit |
+| R19 | F11/co-pilot invents evidence, follows injected CV/transcript instructions, or suggests unsafe questions | Medium | High | selected-application scope, bounded evidence, source-ID/freshness/topic validation, protected-trait guards, human review; deterministic checks are not a semantic safety guarantee |
+| R20 | Co-pilot distracts from interview or fails under provider quota | Medium | Medium | independent worker task, explicit generation/retry, persisted prior probes, no F3/F4 coupling; live synthetic acceptance before closure |

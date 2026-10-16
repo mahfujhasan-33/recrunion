@@ -13,6 +13,34 @@ Each probe contains:
 - generated question
 - evidence reference or explicit evidence gap
 - status (`READY`, `ASKED`, `DISMISSED`)
+- flexible expected-evidence guidance, not a canonical perfect answer
+
+## M11.6 implementation and reviewer presentation
+
+F11 is RecrUnion's single defined innovation. The reviewer-facing **Interviewer AI Co-pilot** is
+its recruiter-only interview preparation/runtime interface, plus requested grounded follow-ups;
+it is not an additional independent innovation. Reviewer labels (including co-pilot/F8 wording)
+do not renumber formal BID features.
+
+The graph consumes current saved F1/F2 for the selected application and approved job requirements.
+Missing/partial evidence precedes strong evidence; requiredness, configured F2 dimension weight,
+source priority and stable IDs resolve ties. When at least three genuine gaps exist, strongly
+evidenced requirements are excluded. Otherwise they may support explicit depth-verification probes.
+The set contains three to five questions when at least three supported requirements exist; one
+or two supported requirements produce only that many questions, with a visible limited-context
+notice instead of invented gaps. No eligible context causes a safe prerequisite error.
+
+Probes start READY; the recruiter may mark ASKED or DISMISSED. Those terminal statuses are immutable
+apart from idempotent repetition. Regeneration replaces only READY probes and preserves history.
+Repeated request IDs and concurrent generation reuse existing tasks; completed unchanged initial
+generation is reused until explicit regeneration. Evidence changes require fresh current F1/F2.
+
+Recruiter requests may use the selected interview's latest saved transcript segments to suggest
+a follow-up. Transcript-dependent requests need saved segments and cited segment IDs. No F5
+evaluation/coverage, live numeric analysis, score mutation, or autonomous hiring advice is produced.
+Auth/CSRF and deterministic source/safety validation precede persistence. Pattern-based safety
+checks are defense-in-depth, not a proof against every hallucination or prompt injection; human
+review remains necessary. Live synthetic acceptance is still required before formal demo closure.
 
 Example:
 

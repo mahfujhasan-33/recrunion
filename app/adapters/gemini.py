@@ -15,6 +15,7 @@ from app.errors import (
 from app.prompts.assistant import build_assistant_turn_prompt
 from app.prompts.candidate_profile import build_candidate_profile_prompt
 from app.prompts.candidate_screening import build_candidate_screening_prompt
+from app.prompts.interview_probes import build_interview_probes_prompt
 from app.prompts.job_description import (
     build_job_description_enhancement_prompt,
     build_job_description_prompt,
@@ -26,6 +27,7 @@ from app.schemas.candidate_profiles import (
     CandidateProfileExtractionRequest,
     CandidateProfileExtractionResult,
 )
+from app.schemas.interview_probes import GeneratedProbeSet, ProbeGenerationContext
 from app.schemas.job_descriptions import (
     GeneratedJobDescription,
     JobDescriptionEnhancementRequest,
@@ -47,6 +49,33 @@ logger = logging.getLogger(__name__)
 
 class GeminiLLMAdapter:
     """Generate structured job descriptions through LangChain Gemini."""
+
+    async def generate_interview_probes(self, request: ProbeGenerationContext) -> GeneratedProbeSet:
+        if not self._api_key:
+            raise LLMConfigurationError("Interview assistance is not configured.")
+        try:
+            model = self._build_model(temperature=0.3).with_structured_output(
+                GeneratedProbeSet,
+                method="json_schema",
+                include_raw=True,
+            )
+            response = await model.ainvoke(build_interview_probes_prompt(request))
+        except Exception as error:
+            raise self._translate_provider_error(error) from None
+        if (
+            not isinstance(response, Mapping)
+            or response.get("parsing_error")
+            or response.get("parsed") is None
+        ):
+            raise LLMInvalidResponseError(
+                "Interview assistance returned an invalid response. Please retry."
+            )
+        try:
+            return GeneratedProbeSet.model_validate(response["parsed"])
+        except ValidationError:
+            raise LLMInvalidResponseError(
+                "Interview assistance returned an invalid response. Please retry."
+            ) from None
 
     def __init__(
         self,
