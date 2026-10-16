@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1, le=65535)
     app_base_url: str = "http://localhost:8000"
     jwt_secret: str = ""
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    access_token_minutes: int = Field(default=60, ge=5, le=1440)
+    auth_cookie_secure: bool = False
+    recruiter_username: str = ""
+    recruiter_password: SecretStr = SecretStr("")
     livekit_url: str = ""
     livekit_api_key: str = ""
     livekit_api_secret: str = ""

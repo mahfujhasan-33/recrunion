@@ -40,6 +40,35 @@ STT_AGENT_CALLBACK_BASE_URL=http://app:8000
 and does not replace it. The agent registers as `recrunion-transcriber`, waits for explicit
 publisher dispatch, and exposes no host port.
 
+## Speaker isolation and overlap verification
+
+Each publisher job fixes `RoomOptions.participant_identity` to the server-dispatched candidate or
+interviewer identity. The pinned LiveKit SDK accepts microphone frames only from that identity,
+including after microphone replacement; it does not mix room audio. Each job owns its STT session,
+segment tracker, and callback client. Backend roles derive from the exact participant identity,
+and callback deduplication includes that identity, so overlapping speakers can use the same segment
+ID without overwriting each other. Live rows also include the participant identity in their key.
+
+Automated tests exercise concurrent publisher callbacks, opposing provider speaker IDs, identical
+segment IDs, simultaneous synthetic audio frames, rejection of the other participant/screenshare
+audio, and a replacement microphone with a late old-track unsubscribe. They verify routing and
+persistence, not real microphone acoustics or provider recognition accuracy.
+
+For live verification, use two devices in separate rooms and headphones on both sides:
+
+1. Join a synthetic interview and say distinct phrases in turns. Check both live labels and the
+   saved transcript after reloading the recruiter page.
+2. Speak different phrases simultaneously for several seconds. Each phrase must stay under its
+   originating participant; overlapping time intervals are valid.
+3. Mute the candidate microphone and speak as the interviewer. No new candidate speech should
+   appear after any already-buffered final segment. Repeat with the roles reversed.
+4. Rejoin one participant, repeat the overlap check, and verify the saved labels remain correct.
+
+Speaker labels identify the originating microphone, not a biometric voice identity. Loudspeaker
+playback or two nearby devices can put one voice into both microphones; isolated streams cannot
+undo that acoustic bleed. Headphones and physically separated participants are required to rule
+it out when investigating apparent mislabelling. Raw audio recording remains disabled.
+
 ## Future production option
 
 The same project can later move to LiveKit Cloud hosting for managed scaling or geographic

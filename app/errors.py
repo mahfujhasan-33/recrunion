@@ -8,6 +8,21 @@ class RecrUnionError(Exception):
     status_code = 400
 
 
+class AuthenticationError(RecrUnionError):
+    code = "AUTHENTICATION_REQUIRED"
+    status_code = 401
+
+
+class AuthorizationError(RecrUnionError):
+    code = "ACCESS_DENIED"
+    status_code = 403
+
+
+class AuthConfigurationError(RecrUnionError):
+    code = "AUTH_NOT_CONFIGURED"
+    status_code = 503
+
+
 class DocumentStorageError(RecrUnionError):
     """Raised when a managed document cannot be stored or retrieved safely."""
 

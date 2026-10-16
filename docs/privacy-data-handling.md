@@ -45,6 +45,24 @@ Recruiter-only information includes ranking, scoring, assessments, and candidate
 
 Candidates use an interview-scoped access token/link and must not be able to access recruiter-only information or other candidate records.
 
+M11.5 enforces recruiter authentication for job/application administration, company documents,
+assistant conversations/actions, F1/F2 results/configuration, interview management and interviewer
+rooms, transcript retrieval, and task status. An initial account is bootstrapped from local
+environment configuration; passwords are stored only as salted derivations. Recruiter JWTs remain
+in HttpOnly, SameSite cookies, are Secure for HTTPS, and reference server-revocable sessions.
+State-changing recruiter requests require a session-bound CSRF token. Login has its own CSRF
+check; logout revokes the session. Candidate and internal STT credentials do not authorize these
+routes. Responses containing private data or capabilities use `Cache-Control: no-store` and
+`Referrer-Policy: same-origin` for recruiter pages so native login/logout forms retain a valid
+Origin header without disclosing referrers externally. Candidate capability pages retain
+`Referrer-Policy: no-referrer`.
+
+The candidate remains account-less. The STT callback's existing authenticated Bearer secret is
+independent of browser login. LiveKit media tokens retain their existing room/participant scope.
+Reviewed WBS item 6.1.1 is brought forward before F5/F6; comprehensive M16 security hardening,
+including login abuse controls, account recovery, and a deployment security review, is not marked
+complete by this foundation.
+
 ## Fairness
 Protected characteristics such as age, gender, ethnicity, nationality, religion, and marital status must not be used as scoring inputs. AI output is decision support only; the final hiring decision remains human.
 

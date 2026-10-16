@@ -169,6 +169,13 @@ Python worker + PostgreSQL `processing_jobs`. No Redis/Celery.
 Recruiter: pre-created username/password + JWT. No public signup.
 Candidate: interview-scoped secure join token; no registration.
 
+M11.5 brings reviewed WBS security item 6.1.1 forward before F5/F6 to close the discovered
+recruiter-route enforcement gap. Recruiter JWTs are held in HttpOnly browser cookies with
+server-side session revocation and CSRF protection. Candidate invitation capabilities, internal
+STT Bearer authentication, and LiveKit participant credentials remain separate authorization
+domains. This completes the minimal access-control foundation only; broader M16 hardening remains
+pending. The frontend remains Jinja2/HTML/CSS/Vanilla JavaScript; a React migration is deferred.
+
 ## Notifications
 Outbound shortlist/final-decision notification through `EmailAdapter` with SMTP baseline.
 Inbound application email was pulled forward as an approved M7.5 product enhancement beyond core

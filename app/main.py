@@ -1,18 +1,22 @@
 import logging
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from app.auth import require_recruiter, safe_next_path
 from app.config import get_settings
-from app.errors import RecrUnionError
+from app.errors import AuthenticationError, RecrUnionError
 from app.routers import (
     applications_api,
     applications_web,
     assistant_api,
     assistant_web,
+    auth_web,
     company_documents_api,
     company_documents_web,
     email_intake_api,
@@ -63,32 +67,64 @@ def create_app() -> FastAPI:
     """Build the FastAPI application."""
 
     configure_logging()
-    application = FastAPI(title="RecrUnion", version="0.1.0")
+    application = FastAPI(
+        title="RecrUnion", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None
+    )
     application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
-    application.include_router(home.router)
-    application.include_router(applications_web.router)
-    application.include_router(interviews_web.router)
-    application.include_router(email_intake_api.router)
-    application.include_router(applications_api.router)
-    application.include_router(interviews_api.router)
-    application.include_router(transcripts_api.router)
-    application.include_router(screening_api.router)
-    application.include_router(scoring_api.router)
-    application.include_router(assistant_web.router)
-    application.include_router(assistant_api.router)
+    application.include_router(auth_web.router)
     application.include_router(health.router)
-    application.include_router(jobs_api.router)
-    application.include_router(job_publications_api.router)
-    application.include_router(jobs_web.router)
-    application.include_router(company_documents_api.router)
-    application.include_router(company_documents_web.router)
-    application.include_router(tasks_api.router)
+    # Candidate capabilities and service callbacks retain their own authentication.
+    application.include_router(interviews_web.router)
+    application.include_router(transcripts_api.router)
+    for recruiter_router in (
+        home.router,
+        applications_web.router,
+        email_intake_api.router,
+        applications_api.router,
+        interviews_api.router,
+        screening_api.router,
+        scoring_api.router,
+        assistant_web.router,
+        assistant_api.router,
+        jobs_api.router,
+        job_publications_api.router,
+        jobs_web.router,
+        company_documents_api.router,
+        company_documents_web.router,
+        tasks_api.router,
+    ):
+        application.include_router(recruiter_router, dependencies=[Depends(require_recruiter)])
+
+    @application.get(
+        "/openapi.json", include_in_schema=False, dependencies=[Depends(require_recruiter)]
+    )
+    def protected_openapi() -> JSONResponse:
+        return JSONResponse(application.openapi())
+
+    @application.get("/docs", include_in_schema=False, dependencies=[Depends(require_recruiter)])
+    def protected_docs() -> HTMLResponse:
+        return get_swagger_ui_html(openapi_url="/openapi.json", title="RecrUnion API")
+
+    @application.middleware("http")
+    async def private_response_headers(request: Request, call_next) -> Response:
+        response = await call_next(request)
+        if not request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store"
+            # Native login/logout forms need their same-origin Origin header.
+            # Capability URLs still suppress all referrers, including same-origin ones.
+            response.headers["Referrer-Policy"] = (
+                "no-referrer" if request.url.path.startswith("/interviews/join/") else "same-origin"
+            )
+        return response
 
     @application.exception_handler(RecrUnionError)
     async def handle_application_error(
         request: Request,
         error: RecrUnionError,
-    ) -> JSONResponse:
+    ) -> JSONResponse | RedirectResponse:
+        if isinstance(error, AuthenticationError) and not request.url.path.startswith("/api/"):
+            next_path = quote(safe_next_path(request.url.path), safe="")
+            return RedirectResponse(f"/login?next={next_path}", status_code=303)
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         return JSONResponse(
             status_code=error.status_code,

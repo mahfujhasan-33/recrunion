@@ -117,11 +117,15 @@ class FakeHTTPClient:
     def __init__(self, statuses: list[int]) -> None:
         self.statuses = statuses
         self.calls = []
+        self.close_count = 0
 
     async def post(self, url: str, **kwargs):
         self.calls.append((url, kwargs))
         status = self.statuses.pop(0)
         return httpx.Response(status, request=httpx.Request("POST", url))
+
+    async def aclose(self) -> None:
+        self.close_count += 1
 
 
 @pytest.mark.asyncio
@@ -158,6 +162,50 @@ async def test_callback_retries_and_uses_bearer_secret_without_logging_text(capl
     assert "private synthetic transcript text" not in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_callback_reuses_and_closes_one_owned_async_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http_client = FakeHTTPClient([200, 200])
+    created_clients = []
+
+    def fake_async_client() -> FakeHTTPClient:
+        created_clients.append(http_client)
+        return http_client
+
+    monkeypatch.setattr(
+        "recrunion_transcriber.callback.httpx.AsyncClient",
+        fake_async_client,
+    )
+    interview_id = uuid4()
+    client = TranscriptionCallbackClient(
+        callback_url="https://recrunion.example.test/callback",
+        secret="synthetic-shared-secret",
+        interview_id=interview_id,
+    )
+
+    def segment(segment_key: str) -> FinalTranscriptSegment:
+        return FinalTranscriptSegment(
+            room_name=f"ru_{interview_id.hex}",
+            participant_identity=f"candidate_{interview_id.hex}",
+            segment_key=segment_key,
+            started_at=datetime.now(UTC),
+            ended_at=datetime.now(UTC),
+            text="private synthetic transcript text",
+            language="en",
+            provider="ASSEMBLYAI",
+        )
+
+    assert await client.persist(segment("segment-1")) is True
+    assert await client.persist(segment("segment-2")) is True
+    await client.aclose()
+    await client.aclose()
+
+    assert created_clients == [http_client]
+    assert len(http_client.calls) == 2
+    assert http_client.close_count == 1
+
+
 def test_agent_is_publisher_scoped_stt_only_and_disables_recording() -> None:
     source = Path(__file__).parents[1].joinpath("agent.py").read_text(encoding="utf-8")
 
@@ -172,5 +220,6 @@ def test_agent_is_publisher_scoped_stt_only_and_disables_recording() -> None:
     assert "audio_output=False" in source
     assert "text_output=True" in source
     assert "record=False" in source
+    assert "await callback.aclose()" in source
     assert "llm=" not in source
     assert "tts=" not in source

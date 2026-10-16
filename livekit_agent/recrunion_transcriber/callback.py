@@ -27,6 +27,8 @@ class FinalTranscriptSegment:
 class AsyncHTTPClient(Protocol):
     async def post(self, url: str, **kwargs: object) -> httpx.Response: ...
 
+    async def aclose(self) -> None: ...
+
 
 class TranscriptionCallbackClient:
     """Persist final segments through a bounded, authenticated callback."""
@@ -43,8 +45,16 @@ class TranscriptionCallbackClient:
         self._callback_url = callback_url
         self._secret = secret
         self._interview_id = interview_id
-        self._http_client = http_client
+        self._http_client = http_client if http_client is not None else httpx.AsyncClient()
+        self._owns_http_client = http_client is None
+        self._closed = False
         self._sleeper = sleeper
+
+    async def aclose(self) -> None:
+        """Close the reusable HTTP client when it is owned by this callback client."""
+        if self._owns_http_client and not self._closed:
+            self._closed = True
+            await self._http_client.aclose()
 
     async def persist(self, segment: FinalTranscriptSegment) -> bool:
         payload = asdict(segment)
@@ -75,17 +85,9 @@ class TranscriptionCallbackClient:
 
     async def _post(self, payload: dict[str, object]) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self._secret}"}
-        if self._http_client is not None:
-            return await self._http_client.post(
-                self._callback_url,
-                json=payload,
-                headers=headers,
-                timeout=5.0,
-            )
-        async with httpx.AsyncClient() as client:
-            return await client.post(
-                self._callback_url,
-                json=payload,
-                headers=headers,
-                timeout=5.0,
-            )
+        return await self._http_client.post(
+            self._callback_url,
+            json=payload,
+            headers=headers,
+            timeout=5.0,
+        )

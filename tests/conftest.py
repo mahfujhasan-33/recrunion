@@ -1,4 +1,6 @@
+import re
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
 
@@ -19,6 +21,7 @@ from app.adapters.video import (
     video_participant_identity,
     video_room_name,
 )
+from app.config import Settings, get_settings
 from app.database import Base, get_db_session
 from app.dependencies import (
     get_application_document_storage,
@@ -29,6 +32,7 @@ from app.dependencies import (
 )
 from app.errors import LLMProviderError, PublisherError, VideoProviderError
 from app.main import create_app
+from app.models.auth import User
 from app.models.jobs import EmploymentType
 from app.models.screening import RequirementMatchStatus
 from app.schemas.assistant import (
@@ -68,6 +72,7 @@ from app.schemas.screening import (
     CandidateScreeningEvaluationResult,
     GeneratedRequirementMatch,
 )
+from app.services.auth import hash_password
 
 
 class FakeLLMAdapter:
@@ -437,6 +442,11 @@ def fake_video_adapter() -> FakeVideoAdapter:
     return FakeVideoAdapter()
 
 
+@pytest.fixture(scope="session")
+def recruiter_password_hash() -> str:
+    return hash_password("synthetic-recruiter-password")
+
+
 @pytest.fixture
 def application(
     database_engine: Engine,
@@ -445,6 +455,7 @@ def application(
     fake_embedding_adapter: FakeEmbeddingAdapter,
     fake_publisher_adapter: FakePublisherAdapter,
     fake_video_adapter: FakeVideoAdapter,
+    recruiter_password_hash: str,
 ) -> Iterator[FastAPI]:
     app = create_app()
 
@@ -453,6 +464,20 @@ def application(
             yield session
 
     app.dependency_overrides[get_db_session] = override_db_session
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None,
+        jwt_secret="synthetic-recruiter-signing-secret-at-least-32-characters",
+        app_base_url="http://testserver",
+    )
+    with Session(database_engine) as session:
+        session.add(
+            User(
+                username="recruiter@example.test",
+                password_hash=recruiter_password_hash,
+                role="RECRUITER",
+            )
+        )
+        session.commit()
     app.dependency_overrides[get_llm_adapter] = lambda: fake_llm_adapter
     app.dependency_overrides[get_embedding_adapter] = lambda: fake_embedding_adapter
     app.dependency_overrides[get_publisher_adapter] = lambda: fake_publisher_adapter
@@ -465,9 +490,31 @@ def application(
     app.dependency_overrides.clear()
 
 
+@contextmanager
+def authenticated_client(application: FastAPI) -> Iterator[TestClient]:
+    with TestClient(application) as test_client:
+        page = test_client.get("/login")
+        csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
+        response = test_client.post(
+            "/login",
+            data={
+                "username": "recruiter@example.test",
+                "password": "synthetic-recruiter-password",
+                "csrf_token": csrf,
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        home = test_client.get("/")
+        test_client.headers["X-CSRF-Token"] = re.search(
+            r'name="csrf-token" content="([^"]+)"', home.text
+        ).group(1)
+        yield test_client
+
+
 @pytest.fixture
 def client(application: FastAPI) -> Iterator[TestClient]:
-    with TestClient(application) as test_client:
+    with authenticated_client(application) as test_client:
         yield test_client
 
 

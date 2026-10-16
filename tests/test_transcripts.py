@@ -15,6 +15,7 @@ from app.repositories.interviews import InterviewRepository
 from app.repositories.transcripts import TranscriptRepository
 from app.schemas.transcripts import TranscriptSegmentIngestRequest
 from app.services.transcripts import TranscriptIngestCredentials, TranscriptService
+from tests.conftest import authenticated_client
 from tests.test_interview_livekit import create_interview
 
 INGEST_SECRET = "synthetic-transcript-ingest-secret"
@@ -92,6 +93,36 @@ def test_same_text_with_different_key_and_chronological_retrieval(db_session: Se
     ]
 
 
+def test_overlapping_speakers_with_same_segment_key_remain_independent(db_session: Session) -> None:
+    interview = create_interview(db_session)
+    service = build_service(db_session)
+    candidate = segment_payload(interview.id, text="Synthetic candidate answer")
+    interviewer = candidate.model_copy(
+        update={
+            "participant_identity": video_participant_identity(
+                interview.id, VideoParticipantRole.INTERVIEWER
+            ),
+            "text": "Synthetic interviewer question",
+        }
+    )
+    authorization = f"Bearer {INGEST_SECRET}"
+
+    # Out-of-order delivery and independent retries during a fully overlapping interval.
+    question = service.ingest(interview.id, interviewer, authorization)
+    answer = service.ingest(interview.id, candidate, authorization)
+    for payload, original in ((candidate, answer), (interviewer, question)):
+        retry = service.ingest(interview.id, payload, authorization)
+        assert retry.created is False
+        assert retry.segment.id == original.segment.id
+
+    segments = service.get_transcript(interview.id).segments
+    assert len(segments) == 2
+    assert {segment.participant_role: segment.text for segment in segments} == {
+        TranscriptParticipantRole.CANDIDATE: candidate.text,
+        TranscriptParticipantRole.INTERVIEWER: interviewer.text,
+    }
+
+
 def test_ingest_rejects_wrong_room_publisher_blank_and_inverted_time(
     db_session: Session,
 ) -> None:
@@ -134,7 +165,7 @@ def test_transcript_api_accepts_authenticated_final_and_retrieves_it(
     payload = segment_payload(interview.id)
     with Session(database_engine, expire_on_commit=False) as session:
         application.dependency_overrides[get_transcript_service] = lambda: build_service(session)
-        with TestClient(application) as client:
+        with authenticated_client(application) as client:
             unauthorized = client.post(
                 f"/api/v1/internal/interviews/{interview.id}/transcript-segments",
                 json=payload.model_dump(mode="json"),

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Recruiter sign in · RecrUnion{% endblock %}
+{% block content %}
+  <section class="form-card login-card">
+    <p class="eyebrow">Recruiter / Interviewer</p>
+    <h1>Sign in to RecrUnion</h1>
+    <p>Candidates should use their interview invitation link. No candidate account is required.</p>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <form action="/login" method="post">
+      <input type="hidden" name="csrf_token" value="{{ login_csrf }}">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <label>Username or email<input name="username" autocomplete="username" required maxlength="254" autofocus></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>
+      <button class="button" type="submit">Sign in</button>
+    </form>
+  </section>
+{% endblock %}

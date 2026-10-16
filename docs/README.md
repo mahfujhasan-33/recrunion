@@ -9,6 +9,7 @@ Current formal documents:
 - `wbs.md`
 - `risk-register.md`
 - `architecture.md`
+- `authentication.md`
 - `innovation-feature.md`
 - `privacy-data-handling.md`
 - `assets/high-level-architecture.png`

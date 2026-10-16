@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
 
+from app.auth import require_recruiter
 from app.dependencies import get_transcript_service
 from app.schemas.transcripts import (
     InterviewTranscriptResponse,
@@ -31,6 +32,7 @@ def ingest_transcript_segment(
 @router.get(
     "/api/v1/interviews/{interview_id}/transcript",
     response_model=InterviewTranscriptResponse,
+    dependencies=[Depends(require_recruiter)],
 )
 def get_interview_transcript(
     interview_id: UUID,

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.auth import require_recruiter
 from app.dependencies import get_interview_room_service
 from app.schemas.interviews import InterviewLifecycleResponse
 from app.services.interview_rooms import InterviewRoomService
@@ -49,7 +50,11 @@ async def sync_candidate_interview_lifecycle(
     )
 
 
-@router.get("/interviews/{interview_id}/room", response_class=HTMLResponse)
+@router.get(
+    "/interviews/{interview_id}/room",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_recruiter)],
+)
 async def recruiter_interview_page(
     request: Request,
     interview_id: UUID,

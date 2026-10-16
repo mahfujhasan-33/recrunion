@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIWebSocketRoute
-from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
@@ -23,7 +22,7 @@ from app.repositories.interviews import InterviewRepository
 from app.repositories.jobs import JobRepository
 from app.services.interview_rooms import InterviewRoomService
 from app.services.interview_scheduling import hash_token
-from tests.conftest import FakeVideoAdapter
+from tests.conftest import FakeVideoAdapter, authenticated_client
 from tests.test_interview_scheduling import create_scored_application
 
 
@@ -59,7 +58,7 @@ def test_room_pages_render_livekit_config_without_recruiter_data_leak(
     with Session(database_engine, expire_on_commit=False) as session:
         interview = create_interview(session, invitation_token=token)
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         recruiter = client.get(f"/interviews/{interview.id}/room")
         candidate = client.get(f"/interviews/join/{token}")
 
@@ -84,7 +83,7 @@ def test_missing_provider_configuration_renders_safe_state(
         interview = create_interview(session, invitation_token=token)
     application.dependency_overrides[get_video_adapter] = lambda: FakeVideoAdapter(configured=False)
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         response = client.get(f"/interviews/join/{token}")
 
     assert response.status_code == 200
@@ -107,7 +106,7 @@ def test_lifecycle_sync_uses_provider_presence_and_candidate_capability(
         VideoParticipant(video_participant_identity(interview.id, VideoParticipantRole.CANDIDATE))
     ]
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         wrong = client.post("/interviews/join/wrong-token/lifecycle-sync")
         waiting = client.post(f"/interviews/join/{token}/lifecycle-sync")
         fake_video_adapter.participants[room_name].append(
@@ -145,7 +144,7 @@ def test_candidate_capability_cannot_select_another_room_or_identity(
         VideoParticipant(first_identity)
     ]
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         room = client.get(
             f"/interviews/join/{first_token}",
             params={
@@ -175,7 +174,7 @@ def test_interviewer_end_api_persists_and_closes_provider_room(
         interview.status = InterviewStatus.WAITING
         session.commit()
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         response = client.post(f"/api/v1/interviews/{interview.id}/end")
         ended_room = client.get(f"/interviews/{interview.id}/room")
 

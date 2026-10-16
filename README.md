@@ -37,13 +37,34 @@ Detailed build/run instructions will be completed as the implementation progress
 Requirements: Docker with the Compose plugin.
 
 1. Copy `.env.example` to `.env` and change `POSTGRES_PASSWORD` from its placeholder.
+   Configure a strong random `JWT_SECRET` (at least 32 bytes), `RECRUITER_USERNAME`, and an initial
+   `RECRUITER_PASSWORD` of 12–128 characters locally. Keep existing configured `JWT_SECRET` values:
+   rotating that secret also affects previously issued candidate invitation links.
 2. Start the application:
 
    ```bash
    docker compose up --build
    ```
 
-3. Open `http://localhost:8000`.
+3. Bootstrap the initial recruiter once, after the app is healthy:
+
+   ```bash
+   docker compose exec app python -m app.bootstrap_recruiter
+   ```
+
+4. Open `/login` on the origin configured in `APP_BASE_URL` and sign in with the locally configured
+   credentials (`http://localhost:8000/login` for the default local setup). If `APP_BASE_URL` is
+   HTTPS, use that HTTPS address: Secure cookies intentionally cannot authenticate HTTP localhost.
+   Bootstrap does not reset an existing account or create additional accounts. There is no public
+   signup. The bootstrap password can be removed from the environment after provisioning.
+
+Recruiter pages/APIs now require login. API mutations also need the session-bound `X-CSRF-Token`
+from the authenticated page's `csrf-token` meta tag; the bundled frontend sends it automatically.
+Candidate invitation links and authenticated internal transcription callbacks retain their existing
+credential flows. `/health` and `/ready` remain public. Set `APP_BASE_URL` to the public HTTPS
+origin for external access; authentication cookies become Secure automatically. Optional
+`AUTH_COOKIE_SECURE=true` forces Secure cookies; `ACCESS_TOKEN_MINUTES` defaults to 60.
+See [authentication and access boundaries](docs/authentication.md) for scope and limitations.
 
 The app container applies pending Alembic migrations before starting FastAPI. To inspect or apply migrations manually:
 

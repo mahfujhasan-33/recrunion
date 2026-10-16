@@ -70,7 +70,13 @@ async def transcribe_publisher(ctx: JobContext) -> None:
         if background_tasks:
             await asyncio.gather(*tuple(background_tasks), return_exceptions=True)
 
-    ctx.add_shutdown_callback(drain_background_tasks)
+    async def close_callback_client() -> None:
+        try:
+            await drain_background_tasks()
+        finally:
+            await callback.aclose()
+
+    ctx.add_shutdown_callback(close_callback_client)
 
     @session.on("user_input_transcribed")
     def on_transcript(event: UserInputTranscribedEvent) -> None:

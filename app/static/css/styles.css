@@ -795,6 +795,27 @@ button[aria-busy="true"],
   }
 }
 
+.login-card {
+  max-width: 30rem;
+  margin: 2rem auto;
+}
+
+.login-card form {
+  display: grid;
+  gap: 1rem;
+}
+
+.logout-form {
+  display: inline;
+  margin: 0;
+}
+
+.auth-expired {
+  padding: 1rem;
+  margin: 0;
+  background: #fff4df;
+}
+
 @media (max-width: 60rem) {
   .assistant-page {
     height: auto;

@@ -21,6 +21,7 @@ from app.models.assistant import (
     AssistantMessage,
     AssistantMessageRole,
 )
+from app.models.auth import RecruiterSession, User
 from app.models.company_documents import (
     CompanyDocument,
     CompanyDocumentChunk,
@@ -105,9 +106,11 @@ __all__ = [
     "ProcessingJobStatus",
     "ProcessingJobType",
     "PublicationStatus",
+    "RecruiterSession",
     "RequirementCategory",
     "RequirementMatchStatus",
     "RequirementType",
     "ScoringDimension",
     "TranscriptParticipantRole",
+    "User",
 ]

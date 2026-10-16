@@ -3,17 +3,26 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if request.state.csrf_token %}<meta name="csrf-token" content="{{ request.state.csrf_token }}">{% endif %}
     <title>{% block title %}RecrUnion{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20261014-m11-1">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20261016-m115-1">
+    <script src="/static/js/csrf.js?v=20261016-m115-1" defer></script>
   </head>
   <body>
     <header class="site-header">
       <a class="brand" href="/">RecrUnion</a>
       <nav aria-label="Primary navigation">
+        {% if request.state.recruiter %}
         <a href="/assistant">Recruiter assistant</a>
         <a href="/jobs">Jobs</a>
         <a href="/company-documents">Company documents</a>
         <a href="/health">Health</a>
+        <span>{{ request.state.recruiter.username }}</span>
+        <form action="/logout" method="post" class="logout-form">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button class="button secondary" type="submit">Sign out</button>
+        </form>
+        {% else %}<a href="/login">Recruiter sign in</a>{% endif %}
       </nav>
     </header>
     <main class="page-shell">

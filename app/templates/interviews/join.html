@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if room.role.value == 'INTERVIEWER' %}
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    <script src="/static/js/csrf.js?v=20261016-m115-1" defer></script>
+    {% endif %}
     <title>{{ room.job_title }} interview · RecrUnion</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=20261014-m11-1">
   </head>

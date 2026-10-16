@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -59,6 +58,7 @@ from app.schemas.candidate_profiles import (
 )
 from app.schemas.interviews import InterviewScheduleRequest, InvitationEmailSource
 from app.services.interview_scheduling import InterviewSchedulingService
+from tests.conftest import authenticated_client
 
 TEST_SECRET = "test-only-interview-secret-with-at-least-32-characters"
 
@@ -567,7 +567,7 @@ def test_candidate_landing_page_is_safe(
     try:
         with Session(database_engine, expire_on_commit=False) as session:
             _, candidate_application = create_scored_application(session)
-        with TestClient(application) as client:
+        with authenticated_client(application) as client:
             scheduled = client.post(
                 f"/api/v1/applications/{candidate_application.id}/interviews",
                 json=future_payload().model_dump(mode="json"),
@@ -602,7 +602,7 @@ def test_scheduling_defaults_api_and_editable_form(
             contact_email="sender@example.com",
         )
 
-    with TestClient(application) as client:
+    with authenticated_client(application) as client:
         defaults = client.get(
             f"/api/v1/applications/{candidate_application.id}/interview-scheduling-defaults"
         )

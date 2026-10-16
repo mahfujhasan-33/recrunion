@@ -149,6 +149,13 @@ Each task also stores a 0–100 percentage and safe human-readable stage message
 FastAPI enqueues and returns promptly. Worker processes long-running AI jobs.
 
 ## Interview
+Recruiter pages and APIs require a centrally enforced authenticated recruiter/interviewer session.
+M11.5 retains the approved JWT architecture using an HttpOnly cookie, persisted revocable session,
+and session-bound CSRF token for mutations. Only login, health/readiness, static assets, the existing
+candidate capability endpoints, and the separately authenticated internal STT callback are outside
+the recruiter boundary. Candidate capabilities cannot authorize recruiter data access. See
+`authentication.md` for the access-control contract.
+
 The persisted `InterviewSession` is the logical interview room. M10A creates no external video
 room: a recruiter manually selects a candidate, schedules date/time/timezone/duration, persists the
 session, creates a secure candidate-scoped RecrUnion join token/link, and sends the Gmail
